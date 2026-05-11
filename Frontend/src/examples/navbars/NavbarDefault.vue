@@ -1,7 +1,7 @@
 <script setup>
 import { RouterLink } from "vue-router";
 import { ref, watch, onMounted } from "vue";
-import axios from "axios";
+import { twitchService } from "@/services/twitchService";
 import { useWindowsWidth } from "../../assets/js/useWindowsWidth";
 
 // images
@@ -107,12 +107,8 @@ watch(
 // Función para comprobar si el canal está en vivo
 const checkIfLive = async (username) => {
   try {
-    const response = await axios.post('https://yotigrzcaffirqouegsw.supabase.co/functions/v1/twitch-status', {
-      username: username
-    });
-
-    // Si el canal está en vivo, mostrar la burbuja
-    isLive.value = response.data.isLive;
+    const response = await twitchService.getMe();
+    isLive.value = Boolean(response?.is_live);
     showLiveBubble.value = isLive.value;
   } catch (error) {
     console.error('Error al obtener el estado en vivo:', error);

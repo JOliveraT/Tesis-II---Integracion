@@ -1,7 +1,7 @@
 import { createRouter, createWebHistory } from "vue-router";
 
 // Seguridad de rutas
-import { supabase } from '@/lib/supabase';
+import { useAuthStore } from '@/stores/authStore';
 
 // Rutas de las vistas
 import PresentationView from "../views/Presentation/PresentationView.vue";
@@ -196,7 +196,11 @@ const router = createRouter({
 
 // Protección de rutas
 router.beforeEach(async (to, from, next) => {
-  const { data: { session } } = await supabase.auth.getSession();
+  const authStore = useAuthStore();
+  if (!authStore.user) {
+    await authStore.fetchMe();
+  }
+  const session = authStore.user;
 
   const privateRoutes = [
     'testdashboard', // nombre de la ruta protegida

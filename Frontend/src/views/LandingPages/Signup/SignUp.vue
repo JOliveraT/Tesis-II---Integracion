@@ -97,7 +97,7 @@ const handleSubmit = async (e) => {
   if (!validateForm()) return;
 
   try {
-    const response = await fetch("https://yotigrzcaffirqouegsw.supabase.co/functions/v1/registerUser", {
+    const response = await fetch("`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/twitch/callback`", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

@@ -161,6 +161,7 @@
           v-if="mostrarAnimacion"
           :participantes="participants"
           :premio="prize"
+          :forcedWinner="winner"
           @finalizado="onAnimacionFinalizada"
         />
       </div>
@@ -202,6 +203,8 @@
   
   <script>
   import AnimacionSorteo from '@/components/AnimacionSorteo.vue';
+import { raffleService } from '@/services/raffleService';
+import { participantService } from '@/services/participantService';
 
   export default {
     components: {
@@ -224,6 +227,8 @@
         hoverIndex: -1, // Indice del participante sobre el cual se pasa el mouse
         participantsHeight: 0, // Variable para almacenar la altura dinámica de la lista de participantes
         mostrarAnimacion: false,
+        raffleId: null,
+        claimExpiresAt: null,
       };
     },
     mounted() {
@@ -252,20 +257,22 @@
       resumeSort() {
         this.isStopped = false;
       },
-      startCountdown() {
-        const interval = setInterval(() => {
-          if (this.countdown <= 0) {
-            clearInterval(interval);
-          } else {
-            this.countdown--;
-          }
-        }, 1000);
+      async startCountdown() {
+        if (!this.raffleId) return;
+        await raffleService.startClaim(this.raffleId);
       },
       clearParticipants() {
         this.participants = [];
       },
-      startSort() {
+      async startSort() {
         if (this.participants.length > 0) {
+          const raffle = await raffleService.create({ prize: this.prize, command: this.command });
+          this.raffleId = raffle.id;
+          for (const name of this.participants) { await participantService.create({ raffle_id: this.raffleId, display_name: name }); }
+          await raffleService.calculateScore(this.raffleId);
+          const winnerResponse = await raffleService.selectWinner(this.raffleId);
+          this.winner = winnerResponse?.winner_name || this.winner;
+
           const nombresURL = encodeURIComponent(this.participants.join(','));
           const premioURL = encodeURIComponent(this.prize || '');
 
