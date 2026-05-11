@@ -40,6 +40,11 @@ const props = defineProps({
   premio: {
     type: String,
     required: false
+  },
+  forcedWinner: {
+    type: String,
+    required: false,
+    default: ''
   }
 });
 
@@ -156,7 +161,7 @@ function checkHuracanEliminacion() {
     else element.classList.remove('temblor');
   });
 
-  if (safeIndices.value.length === 1 && !winnerIndex.value) {
+  if (safeIndices.value.length === 1 && winnerIndex.value === null) {
         // ⏹️ Detener sorteo.mp3
     if (!audioSorteo.paused) {
         audioSorteo.pause();
@@ -168,7 +173,7 @@ function checkHuracanEliminacion() {
         console.warn('No se pudo reproducir la música del ganador automáticamente.');
     });
 
-    winnerIndex.value = safeIndices.value[0];
+    winnerIndex.value = props.forcedWinner ? names.value.indexOf(props.forcedWinner) : safeIndices.value[0];
       // ✅ Marcar que ya se eligió ganador para evitar reinicios
     yaGanadorSeleccionado.value = true;
     despedirHuracanYMostrarGanador(winnerIndex.value);
@@ -178,7 +183,7 @@ function checkHuracanEliminacion() {
 function startHuracanRecorrido() {
   if (yaGanadorSeleccionado.value) return; // Detener cualquier ejecución futura
   if (safeIndices.value.length === 1) {
-    winnerIndex.value = safeIndices.value[0];
+    winnerIndex.value = props.forcedWinner ? names.value.indexOf(props.forcedWinner) : safeIndices.value[0];
     despedirHuracanYMostrarGanador(winnerIndex.value);
     return;
   }

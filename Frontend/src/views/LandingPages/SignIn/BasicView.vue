@@ -1,7 +1,8 @@
 <script setup>
 import { ref, onMounted } from "vue";
-import { useRouter } from "vue-router"; // <- para redirigir
-import { supabase } from "@/lib/supabase"; // <- cliente supabase
+import { useRoute, useRouter } from "vue-router";
+import { authService } from '@/services/authService';
+import { supabase } from '@/lib/supabase';
 
 // example components
 import DefaultNavbar from "@/examples/navbars/NavbarDefault.vue";
@@ -18,52 +19,90 @@ import setMaterialInput from "@/assets/js/material-input";
 // Importar la imagen como un módulo
 import fondoAzul from '@/assets/img/fondo-azul-hexagonos.svg';
 
-// --- Estados reactivos para el formulario ---
 const email = ref('');
 const password = ref('');
 const errorMessage = ref('');
 const loading = ref(false);
 
-// Router
 const router = useRouter();
+const route = useRoute();
 
-// --- Función para hacer login ---
 const handleLogin = async () => {
   loading.value = true;
   errorMessage.value = '';
 
-  console.log('Email:', email.value); // Verifica que el email es correcto
-  console.log('Password:', password.value); // Verifica que la contraseña es correcta
-
   if (!email.value || !password.value) {
-    errorMessage.value = 'Por favor ingrese un correo y una contraseña';
+    errorMessage.value = 'Por favor ingrese correo y contraseña';
     loading.value = false;
     return;
   }
-  
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.value,
-    password: password.value
-  });
+  try {
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.value,
+      password: password.value,
+    });
 
-  loading.value = false;
+    if (error) {
+      errorMessage.value = error.message;
+      return;
+    }
 
-  if (error) {
-    console.error('Error de login:', error);
-    errorMessage.value = error.message;
-  } else {
-    console.log('Login exitoso:', data);
-    router.push({ name: 'Dashboard' }); // <-- redirigir al dashboard (ajustaremos el router después)
+    await router.replace({ name: 'Dashboard' });
+  } catch (error) {
+    errorMessage.value = error?.message || 'Error iniciando sesión';
+  } finally {
+    loading.value = false;
   }
 };
 
-onMounted(() => {
-  setMaterialInput();
-});
+const handleConnectTwitch = async () => {
+  loading.value = true;
+  errorMessage.value = '';
+  try {
+    const authUrlData = await authService.getAuthUrl();
+    if (authUrlData?.auth_url) {
+      window.location.href = authUrlData.auth_url;
+      return;
+    }
+    errorMessage.value = 'No se pudo iniciar conexión con Twitch';
+  } catch (error) {
+    errorMessage.value = error?.response?.data?.detail || 'Error conectando Twitch';
+  } finally {
+    loading.value = false;
+  }
+};
 
-onMounted(() => {
+const handleOAuthCallbackIfPresent = async () => {
+  const code = route.query.code;
+  const oauthError = route.query.error;
+
+  if (oauthError) {
+    errorMessage.value = `Twitch OAuth error: ${oauthError}`;
+    return;
+  }
+
+  if (!code || typeof code !== 'string') return;
+
+  loading.value = true;
+  errorMessage.value = '';
+  try {
+    const result = await authService.callback(code);
+    if (result?.connected) {
+      await router.replace({ name: 'Dashboard' });
+      return;
+    }
+    errorMessage.value = result?.message || 'No se pudo completar la conexión con Twitch.';
+  } catch (error) {
+    errorMessage.value = error?.response?.data?.detail || 'Error completando callback de Twitch';
+  } finally {
+    loading.value = false;
+  }
+};
+
+onMounted(async () => {
   setMaterialInput();
+  await handleOAuthCallbackIfPresent();
 });
 </script>
 
@@ -154,9 +193,22 @@ onMounted(() => {
                       color="success"
                       fullWidth
                       :disabled="loading"
-                      
+
                     >
                       {{ loading ? 'Ingresando...' : 'Ingresar' }}
+                    </MaterialButton>
+                  </div>
+
+                  <div class="text-center">
+                    <MaterialButton
+                      class="mb-2"
+                      variant="gradient"
+                      color="info"
+                      fullWidth
+                      :disabled="loading"
+                      @click.prevent="handleConnectTwitch"
+                    >
+                      Conectar con Twitch
                     </MaterialButton>
                   </div>
                   <p class="mt-4 text-sm text-center">
