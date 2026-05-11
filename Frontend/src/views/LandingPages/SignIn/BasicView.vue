@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router"; // <- para redirigir
-import { supabase } from "@/lib/supabase"; // <- cliente supabase
+import { authService } from '@/services/authService';
 
 // example components
 import DefaultNavbar from "@/examples/navbars/NavbarDefault.vue";
@@ -42,19 +42,17 @@ const handleLogin = async () => {
   }
   
 
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email: email.value,
-    password: password.value
-  });
-
-  loading.value = false;
-
-  if (error) {
-    console.error('Error de login:', error);
-    errorMessage.value = error.message;
-  } else {
-    console.log('Login exitoso:', data);
-    router.push({ name: 'Dashboard' }); // <-- redirigir al dashboard (ajustaremos el router después)
+  try {
+    const authUrlData = await authService.getAuthUrl();
+    if (authUrlData?.auth_url) {
+      window.location.href = authUrlData.auth_url;
+      return;
+    }
+    errorMessage.value = 'No se pudo iniciar autenticación con Twitch';
+  } catch (error) {
+    errorMessage.value = error?.response?.data?.detail || 'Error de autenticación';
+  } finally {
+    loading.value = false;
   }
 };
 
