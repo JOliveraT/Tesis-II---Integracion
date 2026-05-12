@@ -20,7 +20,6 @@ import fondoAzul from '@/assets/img/fondo-azul-hexagonos.svg';
 
 // --- Estados reactivos para el formulario ---
 const email = ref('');
-const password = ref('');
 const errorMessage = ref('');
 const loading = ref(false);
 
@@ -41,8 +40,8 @@ const handleLogin = async () => {
   
 
   try {
-    await authStore.login({ email: email.value, password: password.value });
-    router.push('/dashboard');
+    await authStore.login({ email: email.value });
+    router.push('/dashboard-layout');
   } catch (error) {
     errorMessage.value = error?.response?.data?.detail || 'Error de autenticación';
   } finally {
@@ -129,7 +128,8 @@ onMounted(async () => {
                     class="input-group-outline mb-3"
                     :label="{ text: 'Contraseña', class: 'form-label' }"
                     type="password"
-                    v-model="password"
+                    modelValue="********"
+                    :disabled="true"
                   />
                   <MaterialSwitch
                     class="d-flex align-items-center mb-3"
