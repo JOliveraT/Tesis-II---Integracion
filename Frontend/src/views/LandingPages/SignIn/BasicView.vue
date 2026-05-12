@@ -1,5 +1,6 @@
 <script setup>
 import { ref, onMounted } from "vue";
+import axios from "axios";
 import { useRouter } from "vue-router"; // <- para redirigir
 import { useAuthStore } from '@/stores/authStore';
 
@@ -57,6 +58,11 @@ onMounted(async () => {
     const session = await authStore.checkSession();
     if (session) router.push('/dashboard');
   } catch (error) {
+    if (axios.isAxiosError(error) && error.response?.status === 401) {
+      authStore.logout();
+      return;
+    }
+
     errorMessage.value = 'No se pudo validar la sesión actual.';
   }
 });

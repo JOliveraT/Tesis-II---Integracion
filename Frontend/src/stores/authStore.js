@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import axios from 'axios';
 import { authService } from '@/services/authService';
 import apiClient from '@/services/apiClient';
 
@@ -6,6 +7,18 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({ user: null, token: localStorage.getItem('auth_token') || '', loading: false }),
   getters: { isAuthenticated: (s) => Boolean(s.token) },
   actions: {
+    loadTokenFromLocalStorage() {
+      const token = localStorage.getItem('auth_token') || '';
+      this.token = token;
+
+      if (token) {
+        apiClient.defaults.headers.common.Authorization = `Bearer ${token}`;
+      } else {
+        delete apiClient.defaults.headers.common.Authorization;
+      }
+
+      return token;
+    },
     async signUp(payload) {
       this.loading = true;
       try {
@@ -13,6 +26,7 @@ export const useAuthStore = defineStore('auth', {
         this.token = data.token;
         this.user = data.user;
         localStorage.setItem('auth_token', data.token);
+        apiClient.defaults.headers.common.Authorization = `Bearer ${data.token}`;
         return data;
       } finally { this.loading = false; }
     },
@@ -23,15 +37,36 @@ export const useAuthStore = defineStore('auth', {
         this.token = data.token;
         this.user = data.user;
         localStorage.setItem('auth_token', data.token);
+        apiClient.defaults.headers.common.Authorization = `Bearer ${data.token}`;
         return data;
       } finally { this.loading = false; }
     },
-    async fetchMe() {
+    async checkSession() {
       if (!this.token) return null;
-      const data = await authService.me();
-      this.user = data.user;
-      return this.user;
+
+      try {
+        const data = await authService.me();
+        this.user = data.user;
+        return this.user;
+      } catch (error) {
+        const isUnauthorized = axios.isAxiosError(error) && error.response?.status === 401;
+
+        if (isUnauthorized) {
+          this.logout();
+          return null;
+        }
+
+        throw error;
+      }
     },
-    logout() { this.user = null; this.token = ''; localStorage.removeItem('auth_token'); }
+    async fetchMe() {
+      return this.checkSession();
+    },
+    logout() {
+      this.user = null;
+      this.token = '';
+      localStorage.removeItem('auth_token');
+      delete apiClient.defaults.headers.common.Authorization;
+    }
   },
 });
