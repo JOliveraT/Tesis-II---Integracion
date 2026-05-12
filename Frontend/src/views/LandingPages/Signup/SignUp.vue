@@ -127,20 +127,29 @@ const handleSubmit = async (e) => {
   try {
     const payload = {
       first_name: formData.firstName.trim(),
-      last_name_p: formData.lastNameP.trim(),
-      last_name_m: formData.lastNameM.trim(),
+      last_name: formData.lastNameP.trim(),
+      middle_name: formData.lastNameM.trim(),
       nickname: formData.nickname.trim(),
       country: formData.country,
-      phone_code: formData.phoneCode,
       phone: formData.phone.trim(),
       birth_date: formData.birthDate,
       email: formData.email.trim(),
       password: formData.password,
+      password_confirmation: formData.confirmPassword,
+      confirm_password: formData.confirmPassword,
     };
     await authStore.signUp(payload);
     router.push('/dashboard-layout');
   } catch (error) {
-    alert(error?.response?.data?.detail || 'Error al registrar');
+    if (error.response && error.response.data) {
+      const backendData = error.response.data;
+      const messages = Array.isArray(backendData.detail)
+        ? backendData.detail.map((item) => item.msg || JSON.stringify(item)).join('\n')
+        : Object.values(backendData).flat().join('\n');
+      alert(messages || 'Error al registrar el usuario.');
+    } else {
+      alert('Error desconocido al registrar el usuario.');
+    }
   } finally {
     isLoading.value = false;
   }
@@ -257,7 +266,7 @@ onBeforeUnmount(() => {
                       <div v-if="formSubmitted && errors.termsAccepted" class="text-danger">{{ errors.termsAccepted }}</div>
 
                       <div class="text-center">
-                        <MaterialButton class="mt-4 mb-2" variant="gradient" color="success" fullWidth size="lg" :disabled="!isFormValid" @click="handleSubmit">
+                        <MaterialButton class="mt-4 mb-2" variant="gradient" color="success" fullWidth size="lg" :disabled="!isFormValid" type="submit">
                           REGISTRAR
                         </MaterialButton>
                       </div>
