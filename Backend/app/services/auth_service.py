@@ -1,4 +1,8 @@
 from datetime import datetime, timedelta, timezone
+import base64
+import hashlib
+import hmac
+import os
 
 import jwt
 from fastapi import Header, HTTPException
@@ -9,6 +13,7 @@ from app.database import supabase
 JWT_ALGORITHM = "HS256"
 TOKEN_TTL_HOURS = 24
 USERS_TABLE = "users"
+PROFILES_TABLE = "user_profiles"
 
 
 def _jwt_secret() -> str:
@@ -16,6 +21,19 @@ def _jwt_secret() -> str:
     if not secret:
         raise HTTPException(status_code=500, detail="JWT secret no configurado")
     return secret
+
+
+def _hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    key = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100_000)
+    return base64.b64encode(salt + key).decode('utf-8')
+
+
+def _verify_password(password: str, password_hash: str) -> bool:
+    raw = base64.b64decode(password_hash.encode('utf-8'))
+    salt, stored = raw[:16], raw[16:]
+    check = hashlib.pbkdf2_hmac('sha256', password.encode('utf-8'), salt, 100_000)
+    return hmac.compare_digest(check, stored)
 
 
 def _create_token(user: dict) -> str:
@@ -38,35 +56,55 @@ def _to_user_payload(user: dict) -> dict:
     }
 
 
-def signup(*, email: str, display_name: str) -> dict:
-    existing = supabase.table(USERS_TABLE).select("id").eq("email", email).limit(1).execute()
-    if existing.data:
-        raise HTTPException(status_code=409, detail="El usuario ya existe")
+def signup(**data) -> dict:
+    if data['password'] != data['confirm_password']:
+        raise HTTPException(status_code=400, detail='Las contraseñas no coinciden')
 
-    created = (
-        supabase.table(USERS_TABLE)
-        .insert({"email": email, "display_name": display_name})
-        .execute()
-    )
-    if not created.data:
-        raise HTTPException(status_code=500, detail="No se pudo crear el usuario")
+    for field, value, msg in [
+      ('email', data['email'], 'El correo ya está registrado'),
+      ('nickname', data['nickname'], 'El nickname ya está en uso'),
+      ('phone', data['phone'], 'El teléfono ya está registrado')
+    ]:
+      table = USERS_TABLE if field == 'email' else PROFILES_TABLE
+      result = supabase.table(table).select('id' if table == USERS_TABLE else 'user_id').eq(field, value).limit(1).execute()
+      if result.data:
+        raise HTTPException(status_code=409, detail=msg)
 
-    user = created.data[0]
-    return {"user": _to_user_payload(user), "token": _create_token(user)}
+    display_name = f"{data['first_name']} {data['last_name']}"
+    user_created = supabase.table(USERS_TABLE).insert({
+      'email': data['email'],
+      'display_name': display_name,
+      'password_hash': _hash_password(data['password'])
+    }).execute()
+
+    if not user_created.data:
+      raise HTTPException(status_code=500, detail='No se pudo crear el usuario')
+
+    user = user_created.data[0]
+    supabase.table(PROFILES_TABLE).insert({
+      'user_id': user['id'],
+      'nickname': data['nickname'],
+      'first_name': data['first_name'],
+      'last_name': data['last_name'],
+      'middle_name': data['middle_name'],
+      'birth_date': data.get('birth_date'),
+      'country': data['country'],
+      'phone': data['phone'],
+    }).execute()
+
+    return {'user': _to_user_payload(user), 'token': _create_token(user)}
 
 
-def login(*, email: str) -> dict:
-    result = (
-        supabase.table(USERS_TABLE)
-        .select("id,email,display_name,created_at")
-        .eq("email", email)
-        .limit(1)
-        .execute()
-    )
+def login(*, email: str, password: str) -> dict:
+    result = supabase.table(USERS_TABLE).select('id,email,display_name,created_at,password_hash').eq('email', email.lower().strip()).limit(1).execute()
     if not result.data:
-        raise HTTPException(status_code=401, detail="Credenciales inválidas")
+      raise HTTPException(status_code=401, detail='Credenciales inválidas')
+
     user = result.data[0]
-    return {"user": _to_user_payload(user), "token": _create_token(user)}
+    if not user.get('password_hash') or not _verify_password(password, user['password_hash']):
+      raise HTTPException(status_code=401, detail='Credenciales inválidas')
+
+    return {'user': _to_user_payload(user), 'token': _create_token(user)}
 
 
 def get_current_user(authorization: str | None = Header(default=None)) -> dict:
@@ -83,13 +121,7 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict:
     if not user_id:
         raise HTTPException(status_code=401, detail="Token inválido")
 
-    result = (
-        supabase.table(USERS_TABLE)
-        .select("id,email,display_name,created_at")
-        .eq("id", user_id)
-        .limit(1)
-        .execute()
-    )
+    result = supabase.table(USERS_TABLE).select("id,email,display_name,created_at").eq("id", user_id).limit(1).execute()
     if not result.data:
         raise HTTPException(status_code=401, detail="Usuario no encontrado")
 
