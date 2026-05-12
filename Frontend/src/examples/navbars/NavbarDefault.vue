@@ -227,7 +227,6 @@ onMounted(() => {
               :to="{name:'signin'}"
               class="btn btn-sm mb-0"
               :class="action.color"
-              onclick="smoothToPricing('pricing-soft-ui')"
             >
               {{ actionSignIn.label }}
           </router-link>
@@ -236,7 +235,6 @@ onMounted(() => {
               :to="{name:'signup'}"
               class="btn btn-sm mb-0"
               :class="action.color"
-              onclick="smoothToPricing('pricing-soft-ui')"
               >{{ action.label }}
             </router-link>
           </li>

@@ -68,25 +68,49 @@ watch(() => formData.country, (newCode) => {
   formData.phoneCode = selected ? selected.phoneCode : '';
 });
 
+const nameRegex = /^[A-Za-zÁÉÍÓÚáéíóúÑñÜü\s]+$/;
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const phoneRegex = /^\d{7,15}$/;
+
+const isValidName = (value) => nameRegex.test(value.trim());
+const isValidEmail = (value) => emailRegex.test(value.trim());
+const isValidPhone = (value) => phoneRegex.test(value.trim());
+
 // Validación en tiempo real
 const isFormValid = computed(() => {
-  return formData.firstName && formData.lastNameP && formData.lastNameM && formData.nickname &&
-    formData.country && formData.phone && formData.birthDate &&
-    /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) &&
-    formData.password.length >= 8 && formData.password === formData.confirmPassword &&
-    formData.termsAccepted;
+  return Boolean(
+    formData.nickname.trim() &&
+    formData.country &&
+    formData.birthDate &&
+    isValidName(formData.firstName) &&
+    isValidName(formData.lastNameP) &&
+    isValidName(formData.lastNameM) &&
+    isValidEmail(formData.email) &&
+    isValidPhone(formData.phone) &&
+    formData.password.length >= 8 &&
+    formData.password === formData.confirmPassword &&
+    formData.termsAccepted
+  );
 });
 
 // Validación completa con errores
 const validateForm = () => {
-  errors.firstName = formData.firstName ? '' : 'First name is required';
-  errors.lastNameP = formData.lastNameP ? '' : 'Last name (paternal) is required';
-  errors.lastNameM = formData.lastNameM ? '' : 'Last name (maternal) is required';
-  errors.nickname = formData.nickname ? '' : 'Nickname is required';
+  errors.firstName = formData.firstName.trim()
+    ? (isValidName(formData.firstName) ? '' : 'Nombre inválido (solo letras y espacios)')
+    : 'First name is required';
+  errors.lastNameP = formData.lastNameP.trim()
+    ? (isValidName(formData.lastNameP) ? '' : 'Apellido inválido (solo letras y espacios)')
+    : 'Last name (paternal) is required';
+  errors.lastNameM = formData.lastNameM.trim()
+    ? (isValidName(formData.lastNameM) ? '' : 'Apellido inválido (solo letras y espacios)')
+    : 'Last name (maternal) is required';
+  errors.nickname = formData.nickname.trim() ? '' : 'Nickname is required';
   errors.country = formData.country ? '' : 'Country is required';
-  errors.phone = formData.phone ? '' : 'Phone number is required';
+  errors.phone = formData.phone.trim()
+    ? (isValidPhone(formData.phone) ? '' : 'Número telefónico inválido (7 a 15 dígitos)')
+    : 'Phone number is required';
   errors.birthDate = formData.birthDate ? '' : 'Birth date is required';
-  errors.email = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email) ? '' : 'Valid email required';
+  errors.email = isValidEmail(formData.email) ? '' : 'Valid email required';
   errors.password = formData.password.length >= 8 ? '' : 'Min 8 characters';
   errors.confirmPassword = formData.confirmPassword === formData.password ? '' : 'Passwords do not match';
   errors.termsAccepted = formData.termsAccepted ? '' : 'Must accept terms';
@@ -101,8 +125,19 @@ const handleSubmit = async (e) => {
   if (!validateForm()) return;
   isLoading.value = true;
   try {
-    const displayName = [formData.firstName, formData.lastNameP].filter(Boolean).join(' ').trim() || formData.nickname;
-    await authStore.signUp({ email: formData.email, display_name: displayName });
+    const payload = {
+      first_name: formData.firstName.trim(),
+      last_name_p: formData.lastNameP.trim(),
+      last_name_m: formData.lastNameM.trim(),
+      nickname: formData.nickname.trim(),
+      country: formData.country,
+      phone_code: formData.phoneCode,
+      phone: formData.phone.trim(),
+      birth_date: formData.birthDate,
+      email: formData.email.trim(),
+      password: formData.password,
+    };
+    await authStore.signUp(payload);
     router.push('/dashboard-layout');
   } catch (error) {
     alert(error?.response?.data?.detail || 'Error al registrar');
