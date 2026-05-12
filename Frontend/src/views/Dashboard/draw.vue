@@ -199,12 +199,27 @@
       </div>
     </div>
   </div>
+
+    <div v-if="showTwitchModal" class="modal fade show" style="display:block;background:rgba(0,0,0,.6);" tabindex="-1">
+      <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+          <div class="modal-header"><h5 class="modal-title">Vincula Twitch primero</h5></div>
+          <div class="modal-body">Debes vincular tu canal de Twitch para iniciar sorteos.</div>
+          <div class="modal-footer">
+            <button class="btn btn-success" @click="twitchStore.linkChannel()">Vincular canal</button>
+            <button class="btn btn-secondary" @click="showTwitchModal=false">Cerrar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
 </template>
   
   <script>
   import AnimacionSorteo from '@/components/AnimacionSorteo.vue';
 import { raffleService } from '@/services/raffleService';
 import { participantService } from '@/services/participantService';
+import { useTwitchStore } from '@/stores/twitchStore';
 
   export default {
     components: {
@@ -229,9 +244,12 @@ import { participantService } from '@/services/participantService';
         mostrarAnimacion: false,
         raffleId: null,
         claimExpiresAt: null,
+        showTwitchModal: false,
       };
     },
-    mounted() {
+    async mounted() {
+      this.twitchStore = useTwitchStore();
+      await this.twitchStore.loadProfile();
       // Calcular la altura dinámica cuando el componente se monte
       this.updateParticipantsHeight();
 
@@ -265,10 +283,14 @@ import { participantService } from '@/services/participantService';
         this.participants = [];
       },
       async startSort() {
+        if (!this.twitchStore?.connected) {
+          this.showTwitchModal = true;
+          return;
+        }
         if (this.participants.length > 0) {
-          const raffle = await raffleService.create({ prize: this.prize, command: this.command });
-          this.raffleId = raffle.id;
-          for (const name of this.participants) { await participantService.create({ raffle_id: this.raffleId, display_name: name }); }
+          const raffleResp = await raffleService.create({ title: this.prize || 'Sorteo', prize_title: this.prize || 'Premio', prize_description: this.prize || 'Premio', command: this.command || '!sorteo', confirmation_mode: 'chat', claim_timeout_seconds: this.countdown || 30 });
+          this.raffleId = raffleResp?.raffle?.id || raffleResp?.id;
+          for (const name of this.participants) { await participantService.create({ raffle_id: this.raffleId, username: name.toLowerCase().replace(/\s+/g,'_'), display_name: name, entry_source: 'manual' }); }
           await raffleService.calculateScore(this.raffleId);
           const winnerResponse = await raffleService.selectWinner(this.raffleId);
           this.winner = winnerResponse?.winner_name || this.winner;
