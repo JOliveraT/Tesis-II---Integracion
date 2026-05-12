@@ -8,7 +8,8 @@ from app.routers import (
     scoring,
     winner,
     redemptions,
-    twitch_auth
+    twitch_auth,
+    auth
 )
 
 app = FastAPI(
@@ -23,6 +24,7 @@ app.include_router(scoring.router)
 app.include_router(winner.router)
 app.include_router(redemptions.router)
 app.include_router(twitch_auth.router)
+app.include_router(auth.router)
 
 @app.get("/health")
 def health_check():
