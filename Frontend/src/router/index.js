@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from "vue-router";
+import axios from "axios";
 
 // Seguridad de rutas
 import { useAuthStore } from '@/stores/authStore';
@@ -60,6 +61,7 @@ const router = createRouter({
       alias: ['/dashboard'],
       name: "dashboardLayout",
       component: DashboardLayout,
+      meta: { requiresAuth: true },
       children: [
         {
           path: "",
@@ -200,10 +202,10 @@ const router = createRouter({
 // Protección de rutas
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
-  authStore.loadTokenFromLocalStorage();
+  const token = authStore.loadTokenFromLocalStorage();
 
-  const privateRoutes = [
-    'testdashboard', // nombre de la ruta protegida
+  const privateRouteNames = [
+    'testdashboard',
     'page-headers',
     'page-features',
     'navigation-navbars',
@@ -222,26 +224,36 @@ router.beforeEach(async (to, from, next) => {
     'el-progress-bars',
     'el-toggles',
     'el-typography',
+    'dashboardLayout',
+    'Dashboard',
+    'Draws',
+    'DrawAnimation',
   ];
 
-  const isPrivate = privateRoutes.includes(to.name);
+  const requiresAuth = to.matched.some((record) => record.meta.requiresAuth) || privateRouteNames.includes(to.name);
 
   try {
-    if (isPrivate) {
-      if (!authStore.token) return next({ name: 'signin' });
+    if (requiresAuth) {
+      if (!token) return next({ name: 'signin' });
       const session = await authStore.checkSession();
       if (!session) return next({ name: 'signin' });
     }
 
-    if ((to.name === 'signin' || to.name === 'signup') && authStore.token) {
+    if ((to.name === 'signin' || to.name === 'signup') && token) {
       const session = await authStore.checkSession();
       if (session) return next({ path: '/dashboard' });
     }
 
     return next();
   } catch (error) {
+    const unauthorized = axios.isAxiosError(error) && error.response?.status === 401;
+    if (unauthorized) {
+      authStore.logout();
+      return next({ name: 'signin' });
+    }
+
     console.error('Error de navegación/autenticación:', error);
-    if (isPrivate) return next({ name: 'signin' });
+    if (requiresAuth) return next({ name: 'signin' });
     return next();
   }
 });
