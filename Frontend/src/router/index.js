@@ -45,16 +45,19 @@ const router = createRouter({
     },
     {
       path: "/pages/landing-pages/sign-in",
+      alias: ['/signin'],
       name: "signin",
       component: BasicViewVue,
     },
     {
       path: "/pages/landing-pages/sign-up",
+      alias: ['/signup'],
       name: "signup",
       component: SignUp,
     },
     {
       path:"/dashboard-layout",
+      alias: ['/dashboard'],
       name: "dashboardLayout",
       component: DashboardLayout,
       children: [
