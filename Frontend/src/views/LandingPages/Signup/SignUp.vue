@@ -1,5 +1,7 @@
 <script setup>
 import { ref, reactive, computed, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/authStore';
 import { useAppStore } from '@/stores';
 import setMaterialInput from '@/assets/js/material-input';
 
@@ -12,6 +14,8 @@ import MaterialButton from '@/components/MaterialButton.vue';
 import BgSignUp from '@/assets/img/illustrations/illustration-signup.jpg';
 
 const store = useAppStore();
+const router = useRouter();
+const authStore = useAuthStore();
 const body = document.getElementsByTagName("body")[0];
 
 // Estado del formulario
@@ -89,46 +93,21 @@ const validateForm = () => {
   return Object.values(errors).every(e => !e);
 };
 
-// Enviar formulario a Edge Function
+// Enviar formulario al backend
 const handleSubmit = async (e) => {
   e.preventDefault();
   formSubmitted.value = true;
 
   if (!validateForm()) return;
-
+  isLoading.value = true;
   try {
-    const response = await fetch("`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/twitch/callback`", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        nickname: formData.nickname,
-        email: formData.email,
-        password: formData.password,
-        firstName: formData.firstName,
-        lastNameP: formData.lastNameP,
-        lastNameM: formData.lastNameM,
-        country: formData.country,
-        phone: formData.phoneCode + formData.phone,
-        birthDate: formData.birthDate,
-      }),
-    });
-
-    const result = await response.json();
-
-    if (!response.ok) {
-      console.error("Registration error:", result?.error || result?.message || "Unknown error");
-      alert(`Error al registrar: ${result?.error || result?.message || "Unknown error"}`);
-      return;
-    }
-
-    console.log("Registration successful:", result.message);
-    alert(result.message || "Registro exitoso");
-    // Puedes redirigir a una página de confirmación aquí
+    const displayName = [formData.firstName, formData.lastNameP].filter(Boolean).join(' ').trim() || formData.nickname;
+    await authStore.signUp({ email: formData.email, display_name: displayName });
+    router.push('/dashboard-layout');
   } catch (error) {
-    console.error("Unexpected error:", error);
-    alert("Error inesperado al registrar");
+    alert(error?.response?.data?.detail || 'Error al registrar');
+  } finally {
+    isLoading.value = false;
   }
 };
 

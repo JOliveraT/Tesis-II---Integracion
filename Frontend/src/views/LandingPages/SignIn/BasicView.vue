@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router"; // <- para redirigir
-import { authService } from '@/services/authService';
+import { useAuthStore } from '@/stores/authStore';
 
 // example components
 import DefaultNavbar from "@/examples/navbars/NavbarDefault.vue";
@@ -26,29 +26,23 @@ const loading = ref(false);
 
 // Router
 const router = useRouter();
+const authStore = useAuthStore();
 
 // --- Función para hacer login ---
 const handleLogin = async () => {
   loading.value = true;
   errorMessage.value = '';
 
-  console.log('Email:', email.value); // Verifica que el email es correcto
-  console.log('Password:', password.value); // Verifica que la contraseña es correcta
-
-  if (!email.value || !password.value) {
-    errorMessage.value = 'Por favor ingrese un correo y una contraseña';
+  if (!email.value) {
+    errorMessage.value = 'Por favor ingrese un correo';
     loading.value = false;
     return;
   }
   
 
   try {
-    const authUrlData = await authService.getAuthUrl();
-    if (authUrlData?.auth_url) {
-      window.location.href = authUrlData.auth_url;
-      return;
-    }
-    errorMessage.value = 'No se pudo iniciar autenticación con Twitch';
+    await authStore.login({ email: email.value, password: password.value });
+    router.push('/dashboard');
   } catch (error) {
     errorMessage.value = error?.response?.data?.detail || 'Error de autenticación';
   } finally {
@@ -56,12 +50,16 @@ const handleLogin = async () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
   setMaterialInput();
-});
-
-onMounted(() => {
-  setMaterialInput();
+  const token = authStore.loadTokenFromLocalStorage();
+  if (!token) return;
+  try {
+    const session = await authStore.checkSession();
+    if (session) router.push('/dashboard');
+  } catch (error) {
+    errorMessage.value = 'No se pudo validar la sesión actual.';
+  }
 });
 </script>
 
@@ -131,7 +129,7 @@ onMounted(() => {
                     class="input-group-outline mb-3"
                     :label="{ text: 'Contraseña', class: 'form-label' }"
                     type="password"
-                    v-model= "password"
+                    v-model="password"
                   />
                   <MaterialSwitch
                     class="d-flex align-items-center mb-3"

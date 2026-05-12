@@ -45,16 +45,19 @@ const router = createRouter({
     },
     {
       path: "/pages/landing-pages/sign-in",
+      alias: ['/signin'],
       name: "signin",
       component: BasicViewVue,
     },
     {
       path: "/pages/landing-pages/sign-up",
+      alias: ['/signup'],
       name: "signup",
       component: SignUp,
     },
     {
       path:"/dashboard-layout",
+      alias: ['/dashboard'],
       name: "dashboardLayout",
       component: DashboardLayout,
       children: [
@@ -197,10 +200,7 @@ const router = createRouter({
 // Protección de rutas
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
-  if (!authStore.user) {
-    await authStore.fetchMe();
-  }
-  const session = authStore.user;
+  authStore.loadTokenFromLocalStorage();
 
   const privateRoutes = [
     'testdashboard', // nombre de la ruta protegida
@@ -224,10 +224,25 @@ router.beforeEach(async (to, from, next) => {
     'el-typography',
   ];
 
-  if (privateRoutes.includes(to.name) && !session) {
-    next({ name: 'signin' }); // Redirige a login si no hay sesión
-  } else {
-    next(); // Permite el acceso normal
+  const isPrivate = privateRoutes.includes(to.name);
+
+  try {
+    if (isPrivate) {
+      if (!authStore.token) return next({ name: 'signin' });
+      const session = await authStore.checkSession();
+      if (!session) return next({ name: 'signin' });
+    }
+
+    if ((to.name === 'signin' || to.name === 'signup') && authStore.token) {
+      const session = await authStore.checkSession();
+      if (session) return next({ path: '/dashboard' });
+    }
+
+    return next();
+  } catch (error) {
+    console.error('Error de navegación/autenticación:', error);
+    if (isPrivate) return next({ name: 'signin' });
+    return next();
   }
 });
 
