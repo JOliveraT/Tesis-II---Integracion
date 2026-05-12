@@ -1,6 +1,8 @@
 import { apiClient } from './apiClient';
+
 export const authService = {
-  getAuthUrl: () => apiClient.get('/twitch/auth-url'),
-  callback: (code) => apiClient.get(`/twitch/callback?code=${encodeURIComponent(code)}`),
-  me: () => apiClient.get('/twitch/me')
+  signUp: (payload) => apiClient.post('/auth/signup', payload),
+  signIn: (payload) => apiClient.post('/auth/login', payload),
+  me: () => apiClient.get('/auth/me'),
+  getTwitchAuthUrl: () => apiClient.get('/twitch/auth-url')
 };
