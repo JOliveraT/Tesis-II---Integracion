@@ -1,7 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router"; // <- para redirigir
-import { authService } from '@/services/authService';
+import { useAuthStore } from '@/stores/authStore';
 
 // example components
 import DefaultNavbar from "@/examples/navbars/NavbarDefault.vue";
@@ -20,35 +20,28 @@ import fondoAzul from '@/assets/img/fondo-azul-hexagonos.svg';
 
 // --- Estados reactivos para el formulario ---
 const email = ref('');
-const password = ref('');
 const errorMessage = ref('');
 const loading = ref(false);
 
 // Router
 const router = useRouter();
+const authStore = useAuthStore();
 
 // --- Función para hacer login ---
 const handleLogin = async () => {
   loading.value = true;
   errorMessage.value = '';
 
-  console.log('Email:', email.value); // Verifica que el email es correcto
-  console.log('Password:', password.value); // Verifica que la contraseña es correcta
-
-  if (!email.value || !password.value) {
-    errorMessage.value = 'Por favor ingrese un correo y una contraseña';
+  if (!email.value) {
+    errorMessage.value = 'Por favor ingrese un correo';
     loading.value = false;
     return;
   }
   
 
   try {
-    const authUrlData = await authService.getAuthUrl();
-    if (authUrlData?.auth_url) {
-      window.location.href = authUrlData.auth_url;
-      return;
-    }
-    errorMessage.value = 'No se pudo iniciar autenticación con Twitch';
+    await authStore.login({ email: email.value });
+    router.push('/dashboard-layout');
   } catch (error) {
     errorMessage.value = error?.response?.data?.detail || 'Error de autenticación';
   } finally {
@@ -131,7 +124,8 @@ onMounted(() => {
                     class="input-group-outline mb-3"
                     :label="{ text: 'Contraseña', class: 'form-label' }"
                     type="password"
-                    v-model= "password"
+                    modelValue="********"
+                    :disabled="true"
                   />
                   <MaterialSwitch
                     class="d-flex align-items-center mb-3"
