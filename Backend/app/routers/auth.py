@@ -8,12 +8,12 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/signup", response_model=AuthResponse)
 def auth_signup(data: SignUpRequest):
-    return AuthResponse(**signup(**data.model_dump()))
+    return AuthResponse(**signup(email=data.email, display_name=data.display_name))
 
 
 @router.post("/login", response_model=AuthResponse)
 def auth_login(data: LoginRequest):
-    return AuthResponse(**login(email=data.email, password=data.password))
+    return AuthResponse(**login(email=data.email))
 
 
 @router.get("/me")
