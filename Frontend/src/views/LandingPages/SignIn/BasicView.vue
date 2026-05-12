@@ -49,12 +49,16 @@ const handleLogin = async () => {
   }
 };
 
-onMounted(() => {
+onMounted(async () => {
   setMaterialInput();
-});
-
-onMounted(() => {
-  setMaterialInput();
+  const token = authStore.loadTokenFromLocalStorage();
+  if (!token) return;
+  try {
+    const session = await authStore.checkSession();
+    if (session) router.push('/dashboard');
+  } catch (error) {
+    errorMessage.value = 'No se pudo validar la sesión actual.';
+  }
 });
 </script>
 
