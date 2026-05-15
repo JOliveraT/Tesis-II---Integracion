@@ -1,7 +1,9 @@
 <script>
 import SidenavCollapse from "./SidenavCollapse.vue";
 import { useAppStore } from "@/stores";
+import { useAuthStore } from "@/stores/authStore";
 import { computed } from "vue";
+import { useRouter } from "vue-router";
 
 export default {
   name: "SidenavList",
@@ -10,11 +12,19 @@ export default {
   },
   setup() {
     const appStore = useAppStore();
+    const authStore = useAuthStore();
+    const router = useRouter();
 
     const color = computed(() => appStore.color);
 
+    const handleLogout = async () => {
+      authStore.logout();
+      await router.push("/signin");
+    };
+
     return {
       color,
+      handleLogout,
     };
   },
   components: {
@@ -111,8 +121,14 @@ export default {
     </ul>
     <div class="sidenav-footer position-absolute w-100 bottom-0">
       <div class="mx-3">
+        <button type="button" class="nav-link w-100 text-start mb-2" @click="handleLogout">
+          <div class="text-center d-flex align-items-center justify-content-center me-2">
+            <i class="material-icons-round opacity-10 fs-5">logout</i>
+          </div>
+          <span class="nav-link-text ms-1">Cerrar sesión</span>
+        </button>
         <a
-          class="btn mt-4 w-100"
+          class="btn mt-2 w-100"
           :class="`bg-gradient-${color}`"
           href=""
           target="_blank"
