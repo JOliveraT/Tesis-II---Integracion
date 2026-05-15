@@ -14,11 +14,16 @@ export function useSidenavContrast() {
   });
 
   const sidenavTextClass = computed(() =>
-    shouldUseDarkText.value ? "text-dark" : "text-white"
+    shouldUseDarkText.value ? "sidenav-text-contrast-dark" : "sidenav-text-contrast-light"
   );
+
+  const sidenavItemClass = computed(() => ({
+    [sidenavTextClass.value]: true,
+  }));
 
   return {
     sidenavTextClass,
+    sidenavItemClass,
     shouldUseDarkText,
     isWhiteSidenav,
     isDarkSidenav,

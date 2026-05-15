@@ -1,8 +1,8 @@
 <script>
 import { computed } from "vue";
 import { useAppStore } from "@/stores";
-import { useSidenavContrast } from "./useSidenavContrast";
 import { useRoute } from "vue-router";
+import { useSidenavContrast } from "./useSidenavContrast";
 
 export default {
   name: "SidenavCollapse",
@@ -42,14 +42,12 @@ export default {
       isActive.value ? `active bg-gradient-${appStore.color}` : ""
     );
 
+    const { sidenavTextClass } = useSidenavContrast();
+
     const navTextClass = computed(() => {
       if (isActive.value) return "text-white";
 
-      const isWhite = appStore.sidebarType === "bg-white";
-      const isTransparentLight =
-        appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
-
-      return isWhite || isTransparentLight ? "text-dark" : "text-white";
+      return sidenavTextClass.value;
     });
 
     return {
@@ -72,7 +70,7 @@ export default {
       @click="isExpanded = !isExpanded"
     >
       <div class="text-center d-flex align-items-center justify-content-center me-2">
-        <slot name="icon"></slot>
+        <slot name="icon" :iconClass="navTextClass"></slot>
       </div>
       <span class="nav-link-text ms-1" :class="navTextClass">{{ navText }}</span>
     </router-link>

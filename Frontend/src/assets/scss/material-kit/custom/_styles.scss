@@ -1,0 +1,22 @@
+.sidenav {
+  .sidenav-text-contrast-dark {
+    color: #344767;
+  }
+
+  .sidenav-text-contrast-light {
+    color: #ffffff;
+  }
+}
+
+body.dark-version .sidenav.bg-white {
+  .sidenav-text-contrast-dark {
+    color: #344767;
+  }
+}
+
+body.dark-version .sidenav.bg-white .navbar-nav .nav-link.active {
+  .sidenav-text-contrast-dark,
+  .sidenav-text-contrast-light {
+    color: #ffffff;
+  }
+}

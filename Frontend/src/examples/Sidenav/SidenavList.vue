@@ -17,11 +17,7 @@ export default {
     const router = useRouter();
 
     const color = computed(() => appStore.color);
-    const sidenavTextClass = computed(() => {
-      const isWhite = appStore.sidebarType === "bg-white";
-      const isTransparentLight = appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
-      return isWhite || isTransparentLight ? "text-dark" : "text-white";
-    });
+    const { sidenavTextClass } = useSidenavContrast();
 
     const handleLogout = async () => {
       authStore.logout();
@@ -54,8 +50,8 @@ export default {
           collapseRef="dashboard"
           navText="Dashboard"
         >
-          <template v-slot:icon>
-            <i class="material-icons-round fs-5">dashboard</i>
+          <template #icon="{ iconClass }">
+            <i class="material-icons-round fs-5" :class="iconClass">dashboard</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -75,8 +71,8 @@ export default {
           collapseRef="draw"
           navText="Sorteo"
         >
-          <template v-slot:icon>
-            <i class="material-icons-round fs-5">table_view</i>
+          <template #icon="{ iconClass }">
+            <i class="material-icons-round fs-5" :class="iconClass">table_view</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -88,8 +84,8 @@ export default {
           collapseRef="billing"
           navText="Facturación"
         >
-          <template v-slot:icon>
-            <i class="material-icons-round fs-5">receipt_long</i>
+          <template #icon="{ iconClass }">
+            <i class="material-icons-round fs-5" :class="iconClass">receipt_long</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -101,8 +97,8 @@ export default {
           collapseRef="notifications"
           navText="Notificaciones"
         >
-          <template v-slot:icon>
-            <i class="material-icons-round fs-5">notifications</i>
+          <template #icon="{ iconClass }">
+            <i class="material-icons-round fs-5" :class="iconClass">notifications</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -122,8 +118,8 @@ export default {
           collapseRef="profile"
           navText="Perfil"
         >
-          <template v-slot:icon>
-            <i class="material-icons-round fs-5">person</i>
+          <template #icon="{ iconClass }">
+            <i class="material-icons-round fs-5" :class="iconClass">person</i>
           </template>
         </sidenav-collapse>
       </li>
