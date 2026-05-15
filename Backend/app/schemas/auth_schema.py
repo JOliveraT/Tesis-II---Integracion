@@ -16,7 +16,7 @@ class SignUpRequest(BaseModel):
     phone: str
     birth_date: str | None = None
     password: str = Field(min_length=8, max_length=128)
-    confirm_password: str = Field(min_length=8, max_length=128)
+    password_confirmation: str = Field(min_length=8, max_length=128)
 
     @field_validator('email')
     @classmethod
