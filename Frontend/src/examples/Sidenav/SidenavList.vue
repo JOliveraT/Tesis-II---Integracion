@@ -16,6 +16,11 @@ export default {
     const router = useRouter();
 
     const color = computed(() => appStore.color);
+    const sidenavTextClass = computed(() => {
+      const isWhite = appStore.sidebarType === "bg-white";
+      const isTransparentLight = appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
+      return isWhite || isTransparentLight ? "text-dark" : "text-white";
+    });
 
     const handleLogout = async () => {
       authStore.logout();
@@ -24,6 +29,7 @@ export default {
 
     return {
       color,
+      sidenavTextClass,
       handleLogout,
     };
   },
@@ -54,7 +60,8 @@ export default {
       </li>
       <li class="mt-3 nav-item">
         <h6
-          class="text-xs ps-4 text-uppercase font-weight-bolder text-white ms-2"
+          class="text-xs ps-4 text-uppercase font-weight-bolder ms-2"
+          :class="sidenavTextClass"
         >
           PARAMETROS DE SORTEO
         </h6>
@@ -100,7 +107,8 @@ export default {
       </li>
       <li class="mt-3 nav-item">
         <h6
-          class="text-xs ps-4 text-uppercase font-weight-bolder text-white ms-2"
+          class="text-xs ps-4 text-uppercase font-weight-bolder ms-2"
+          :class="sidenavTextClass"
         >
           GESTIÓN DE CUENTA
         </h6>
@@ -129,7 +137,7 @@ export default {
           <div class="text-center d-flex align-items-center justify-content-center me-2">
             <i class="material-icons-round opacity-10 fs-5">logout</i>
           </div>
-          <span class="nav-link-text ms-1">Cerrar sesión</span>
+          <span class="nav-link-text ms-1" :class="sidenavTextClass">Cerrar sesión</span>
         </a>
         <a
           class="btn mt-2 w-100"
