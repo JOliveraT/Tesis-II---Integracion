@@ -19,8 +19,8 @@ export default {
       default: true
     },
     url: {
-    type: [String,Object],
-    default: "#"
+      type: [String, Object],
+      default: "#"
     }
   },
   data() {
@@ -28,25 +28,32 @@ export default {
       isExpanded: false
     };
   },
-  methods: {
-    getRoute() {
-      return this.$route.name ? this.$route.name.toLowerCase() : "";
-    }
-  },
   setup(props) {
     const appStore = useAppStore();
-    const route = useRoute(); // Usamos useRoute para obtener la ruta actual
+    const route = useRoute();
 
-    const activeClass = computed(() => {
+    const isActive = computed(() => {
       const currentRoute = route.name ? route.name.toLowerCase() : "";
-      if (currentRoute.includes(props.collapseRef.toLowerCase())) {
-        return `active bg-gradient-${appStore.color}`; // Añadimos el gradiente al botón activo
-      }
-      return "";
+      return currentRoute.includes(props.collapseRef.toLowerCase());
     });
+
+    const activeClass = computed(() =>
+      isActive.value ? `active bg-gradient-${appStore.color}` : ""
+    );
+
+    const navTextClass = computed(() => {
+      if (isActive.value) return "text-white";
+
+      const isWhite = appStore.sidebarType === "bg-white";
+      const isTransparentLight =
+        appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
+
+      return isWhite || isTransparentLight ? "text-dark" : "text-white";
+    });
+
     return {
-      color: appStore.color,
-      activeClass
+      activeClass,
+      navTextClass
     };
   }
 };
@@ -54,23 +61,25 @@ export default {
 
 <template>
   <div>
-  <router-link
-    :to="url"
-    :data-bs-toggle="collapse ? 'collapse' : ''"
-    :aria-controls="collapseRef"
-    :aria-expanded="isExpanded"
-    class="nav-link"
-    :class="activeClass"
-    @click="isExpanded = !isExpanded"
-  >
-    <div class="text-center d-flex align-items-center justify-content-center me-2">
-      <slot name="icon"></slot>
+    <router-link
+      :to="url"
+      :data-bs-toggle="collapse ? 'collapse' : ''"
+      :aria-controls="collapseRef"
+      :aria-expanded="isExpanded"
+      class="nav-link"
+      :class="activeClass"
+      @click="isExpanded = !isExpanded"
+    >
+      <div
+        class="text-center d-flex align-items-center justify-content-center me-2"
+        :class="navTextClass"
+      >
+        <slot name="icon"></slot>
+      </div>
+      <span class="nav-link-text ms-1" :class="navTextClass">{{ navText }}</span>
+    </router-link>
+    <div :class="isExpanded ? 'collapse show' : 'collapse'">
+      <slot name="list"></slot>
     </div>
-    <span class="nav-link-text ms-1">{{navText}}</span>
-  </router-link>
-  <div :class="isExpanded ? 'collapse show' : 'collapse'">
-    <slot name="list"></slot>
   </div>
-</div>
 </template>
-
