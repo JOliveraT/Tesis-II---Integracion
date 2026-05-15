@@ -17,7 +17,11 @@ export default {
     const router = useRouter();
 
     const color = computed(() => appStore.color);
-    const { sidenavTextClass } = useSidenavContrast();
+    const sidenavTextClass = computed(() => {
+      const isWhite = appStore.sidebarType === "bg-white";
+      const isTransparentLight = appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
+      return isWhite || isTransparentLight ? "text-dark" : "text-white";
+    });
 
     const handleLogout = async () => {
       authStore.logout();

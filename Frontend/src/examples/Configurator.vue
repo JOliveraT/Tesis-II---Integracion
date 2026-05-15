@@ -21,6 +21,13 @@ export default {
 
     const sidebar = (type) => {
       store.sidebarType = type;
+       // ahora, actualizamos el DOM manualmente
+      const sidenav = document.querySelector("#sidenav-main");
+
+    if (sidenav) {
+      sidenav.classList.remove("bg-white", "bg-transparent", "bg-gradient-dark"); // quitamos todas
+      sidenav.classList.add(type); // agregamos la nueva
+      }
     };
 
     const setNavbarFixed = () => {

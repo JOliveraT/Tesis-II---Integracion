@@ -20,9 +20,13 @@ export default {
   setup() {
     const appStore = useAppStore();
 
-    const { sidenavTextClass } = useSidenavContrast();
+    const isLightText = computed(() => {
+      const isWhite = appStore.sidebarType === "bg-white";
+      const isTransparentLight = appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
+      return !(isWhite || isTransparentLight);
+    });
 
-    const brandTextClass = computed(() => sidenavTextClass.value);
+    const brandTextClass = computed(() => (isLightText.value ? "text-white" : "text-dark"));
 
     return {
       sidebarType: appStore.sidebarType,

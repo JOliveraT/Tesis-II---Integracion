@@ -32,7 +32,6 @@ export default {
   setup(props) {
     const appStore = useAppStore();
     const route = useRoute();
-    const { sidenavTextClass } = useSidenavContrast();
 
     const isActive = computed(() => {
       const currentRoute = route.name ? route.name.toLowerCase() : "";
@@ -43,7 +42,15 @@ export default {
       isActive.value ? `active bg-gradient-${appStore.color}` : ""
     );
 
-    const navTextClass = computed(() => (isActive.value ? "text-white" : sidenavTextClass.value));
+    const navTextClass = computed(() => {
+      if (isActive.value) return "text-white";
+
+      const isWhite = appStore.sidebarType === "bg-white";
+      const isTransparentLight =
+        appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
+
+      return isWhite || isTransparentLight ? "text-dark" : "text-white";
+    });
 
     return {
       activeClass,
@@ -64,10 +71,7 @@ export default {
       :class="activeClass"
       @click="isExpanded = !isExpanded"
     >
-      <div
-        class="text-center d-flex align-items-center justify-content-center me-2"
-        :class="navTextClass"
-      >
+      <div class="text-center d-flex align-items-center justify-content-center me-2">
         <slot name="icon"></slot>
       </div>
       <span class="nav-link-text ms-1" :class="navTextClass">{{ navText }}</span>
