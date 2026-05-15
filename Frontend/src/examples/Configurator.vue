@@ -29,26 +29,6 @@ export default {
       sidenav.classList.remove("bg-white", "bg-transparent", "bg-gradient-dark"); // quitamos todas
       sidenav.classList.add(type); // agregamos la nueva
       }
-      // Luego manejamos las clases de color de texto
-    const links = sidenav.querySelectorAll("a, span, h6, p"); // o los elementos que quieras afectar
-
-      if (type === "bg-gradient-dark") {
-        sidenav.classList.remove("text-dark");
-        sidenav.classList.add("text-white");
-
-        links.forEach((el) => {
-          el.classList.remove("text-dark");
-          el.classList.add("text-white");
-        });
-      } else {
-        sidenav.classList.remove("text-white");
-        sidenav.classList.add("text-dark");
-
-        links.forEach((el) => {
-          el.classList.remove("text-white");
-          el.classList.add("text-dark");
-        });
-      }
     };
 
     const setNavbarFixed = () => {
