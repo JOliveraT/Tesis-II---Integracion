@@ -70,10 +70,7 @@ export default {
       :class="activeClass"
       @click="isExpanded = !isExpanded"
     >
-      <div
-        class="text-center d-flex align-items-center justify-content-center me-2"
-        :class="navTextClass"
-      >
+      <div class="text-center d-flex align-items-center justify-content-center me-2">
         <slot name="icon"></slot>
       </div>
       <span class="nav-link-text ms-1" :class="navTextClass">{{ navText }}</span>
