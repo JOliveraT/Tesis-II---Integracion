@@ -123,7 +123,7 @@ export default {
       <div class="mx-3">
         <a
           href="#"
-          class="nav-link w-100 text-start mb-2"
+          class="nav-link w-100 text-start mb-2 d-flex align-items-center"
           @click.prevent="handleLogout"
         >
           <div class="text-center d-flex align-items-center justify-content-center me-2">
