@@ -1,5 +1,13 @@
 import { defineStore } from "pinia";
 import bootstrap from "bootstrap/dist/js/bootstrap.min.js";
+import { activateDarkMode, deactivateDarkMode } from "@/assets/js/dark-mode";
+
+const SIDEBAR_TYPE_STORAGE_KEY = "pixelgift_sidebar_type";
+const SIDEBAR_COLOR_STORAGE_KEY = "pixelgift_sidebar_color";
+const DARK_MODE_STORAGE_KEY = "pixelgift_dark_mode";
+
+const VALID_SIDEBAR_TYPES = ["bg-gradient-dark", "bg-transparent", "bg-white"];
+const VALID_SIDEBAR_COLORS = ["primary", "dark", "info", "success", "warning", "danger"];
 
 export const useAppStore = defineStore("storeId", {
   state: () => ({
@@ -31,6 +39,24 @@ export const useAppStore = defineStore("storeId", {
   }),
 
   actions: {
+    hydrateVisualPreferences() {
+      const savedSidebarType = localStorage.getItem(SIDEBAR_TYPE_STORAGE_KEY);
+      const savedSidebarColor = localStorage.getItem(SIDEBAR_COLOR_STORAGE_KEY);
+      const savedDarkMode = localStorage.getItem(DARK_MODE_STORAGE_KEY);
+
+      if (VALID_SIDEBAR_TYPES.includes(savedSidebarType)) {
+        this.sidebarType = savedSidebarType;
+      }
+
+      if (VALID_SIDEBAR_COLORS.includes(savedSidebarColor)) {
+        this.setColor(savedSidebarColor);
+      }
+
+      if (savedDarkMode === "true" || savedDarkMode === "false") {
+        this.setDarkMode(savedDarkMode === "true");
+      }
+    },
+
     toggleConfigurator() {
       this.showConfig = !this.showConfig;
     },
@@ -65,15 +91,29 @@ export const useAppStore = defineStore("storeId", {
     },
 
     setColor(payload) {
+      if (!VALID_SIDEBAR_COLORS.includes(payload)) return;
       this.color = payload;
+      localStorage.setItem(SIDEBAR_COLOR_STORAGE_KEY, payload);
     },
-    darkMode() {
-      this.isDarkMode = !this.isDarkMode;
+
+    setSidebarType(payload) {
+      if (!VALID_SIDEBAR_TYPES.includes(payload)) return;
+      this.sidebarType = payload;
+      localStorage.setItem(SIDEBAR_TYPE_STORAGE_KEY, payload);
+    },
+
+    setDarkMode(payload) {
+      this.isDarkMode = Boolean(payload);
       if (this.isDarkMode) {
         activateDarkMode();
       } else {
         deactivateDarkMode();
       }
+      localStorage.setItem(DARK_MODE_STORAGE_KEY, String(this.isDarkMode));
+    },
+
+    darkMode() {
+      this.setDarkMode(!this.isDarkMode);
     },
   },
 });

@@ -1,6 +1,5 @@
 <script>
 import { useAppStore } from "@/stores";
-import { activateDarkMode, deactivateDarkMode } from "@/assets/js/dark-mode";
 
 export default {
   name: "configurator",
@@ -20,7 +19,7 @@ export default {
     };
 
     const sidebar = (type) => {
-      store.sidebarType = type;
+      store.setSidebarType(type);
     };
 
     const setNavbarFixed = () => {
@@ -33,13 +32,7 @@ export default {
     };
 
     const darkMode = () => {
-      if (store.isDarkMode) {
-        store.isDarkMode = false;
-        deactivateDarkMode(); // Desactivar modo oscuro
-      } else {
-        store.isDarkMode = true;
-        activateDarkMode(); // Activar modo oscuro
-      }
+      store.darkMode();
     };
 
     const sidenavTypeOnResize = () => {
