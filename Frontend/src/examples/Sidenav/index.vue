@@ -1,6 +1,7 @@
 <script>
 import { computed } from "vue";
 import { useAppStore } from "@/stores";
+import { storeToRefs } from "pinia";
 import { useSidenavContrast } from "./useSidenavContrast";
 import SidenavList from "./SidenavList.vue";
 import logo from "@/assets/img/pixelgift_logo_white.png";
@@ -19,18 +20,14 @@ export default {
   },
   setup() {
     const appStore = useAppStore();
+    const { sidebarType, isDarkMode } = storeToRefs(appStore);
+    const { sidenavTextClass } = useSidenavContrast();
 
-    const isLightText = computed(() => {
-      const isWhite = appStore.sidebarType === "bg-white";
-      const isTransparentLight = appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
-      return !(isWhite || isTransparentLight);
-    });
-
-    const brandTextClass = computed(() => (isLightText.value ? "text-white" : "text-dark"));
+    const brandTextClass = computed(() => sidenavTextClass.value);
 
     return {
-      sidebarType: appStore.sidebarType,
-      isDarkMode: appStore.isDarkMode,
+      sidebarType,
+      isDarkMode,
       brandTextClass,
     };
   },
