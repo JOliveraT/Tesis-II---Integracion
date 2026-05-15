@@ -9,6 +9,7 @@ from fastapi import Header, HTTPException
 
 from app.config import settings
 from app.database import supabase
+from app.schemas.auth_schema import SignUpRequest
 
 JWT_ALGORITHM = "HS256"
 TOKEN_TTL_HOURS = 24
@@ -56,25 +57,25 @@ def _to_user_payload(user: dict) -> dict:
     }
 
 
-def signup(**data) -> dict:
-    if data['password'] != data['confirm_password']:
-        raise HTTPException(status_code=400, detail='Las contraseñas no coinciden')
+def signup(*, data: SignUpRequest) -> dict:
+    if data.password != data.password_confirmation:
+        raise HTTPException(status_code=409, detail='Las contraseñas no coinciden')
 
     for field, value, msg in [
-      ('email', data['email'], 'El correo ya está registrado'),
-      ('nickname', data['nickname'], 'El nickname ya está en uso'),
-      ('phone', data['phone'], 'El teléfono ya está registrado')
+      ('email', data.email, 'El correo ya está registrado'),
+      ('nickname', data.nickname, 'El nickname ya está en uso'),
+      ('phone', data.phone, 'El teléfono ya está registrado')
     ]:
       table = USERS_TABLE if field == 'email' else PROFILES_TABLE
       result = supabase.table(table).select('id' if table == USERS_TABLE else 'user_id').eq(field, value).limit(1).execute()
       if result.data:
         raise HTTPException(status_code=409, detail=msg)
 
-    display_name = f"{data['first_name']} {data['last_name']}"
+    display_name = data.nickname
     user_created = supabase.table(USERS_TABLE).insert({
-      'email': data['email'],
+      'email': data.email,
       'display_name': display_name,
-      'password_hash': _hash_password(data['password'])
+      'password_hash': _hash_password(data.password)
     }).execute()
 
     if not user_created.data:
@@ -83,13 +84,13 @@ def signup(**data) -> dict:
     user = user_created.data[0]
     supabase.table(PROFILES_TABLE).insert({
       'user_id': user['id'],
-      'nickname': data['nickname'],
-      'first_name': data['first_name'],
-      'last_name': data['last_name'],
-      'middle_name': data['middle_name'],
-      'birth_date': data.get('birth_date'),
-      'country': data['country'],
-      'phone': data['phone'],
+      'nickname': data.nickname,
+      'first_name': data.first_name,
+      'last_name': data.last_name,
+      'middle_name': data.middle_name,
+      'birth_date': data.birth_date,
+      'country': data.country,
+      'phone': data.phone,
     }).execute()
 
     return {'user': _to_user_payload(user), 'token': _create_token(user)}
