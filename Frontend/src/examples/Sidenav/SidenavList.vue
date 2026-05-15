@@ -121,12 +121,16 @@ export default {
     </ul>
     <div class="sidenav-footer position-absolute w-100 bottom-0">
       <div class="mx-3">
-        <button type="button" class="nav-link w-100 text-start mb-2" @click="handleLogout">
+        <a
+          href="#"
+          class="nav-link w-100 text-start mb-2"
+          @click.prevent="handleLogout"
+        >
           <div class="text-center d-flex align-items-center justify-content-center me-2">
             <i class="material-icons-round opacity-10 fs-5">logout</i>
           </div>
           <span class="nav-link-text ms-1">Cerrar sesión</span>
-        </button>
+        </a>
         <a
           class="btn mt-2 w-100"
           :class="`bg-gradient-${color}`"
