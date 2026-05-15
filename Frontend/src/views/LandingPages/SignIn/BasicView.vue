@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, reactive, onMounted } from "vue";
 import axios from "axios";
 import { useRouter } from "vue-router"; // <- para redirigir
 import { useAuthStore } from '@/stores/authStore';
@@ -20,7 +20,11 @@ import setMaterialInput from "@/assets/js/material-input";
 import fondoAzul from '@/assets/img/fondo-azul-hexagonos.svg';
 
 // --- Estados reactivos para el formulario ---
-const email = ref('');
+const form = reactive({
+  email: '',
+  password: '',
+});
+const rememberMe = ref(false);
 const errorMessage = ref('');
 const loading = ref(false);
 
@@ -29,22 +33,42 @@ const router = useRouter();
 const authStore = useAuthStore();
 
 // --- Función para hacer login ---
+const getLoginErrorMessage = (error) => {
+  const status = error?.response?.status;
+
+  if (status === 422) return 'Ingresa tu contraseña.';
+  if (status === 401) return 'Correo o contraseña incorrectos.';
+
+  return 'No se pudo iniciar sesión. Intenta nuevamente.';
+};
+
+const handleRememberMeChange = (event) => {
+  const target = event?.target;
+  if (target instanceof HTMLInputElement) {
+    rememberMe.value = target.checked;
+  }
+};
+
 const handleLogin = async () => {
   loading.value = true;
   errorMessage.value = '';
 
-  if (!email.value) {
+  if (!form.email.trim()) {
     errorMessage.value = 'Por favor ingrese un correo';
     loading.value = false;
     return;
   }
-  
+
+  const payload = {
+    email: form.email.trim(),
+    password: form.password,
+  };
 
   try {
-    await authStore.login({ email: email.value });
-    router.push('/dashboard-layout');
+    await authStore.login(payload, rememberMe.value);
+    router.push('/dashboard');
   } catch (error) {
-    errorMessage.value = error?.response?.data?.detail || 'Error de autenticación';
+    errorMessage.value = getLoginErrorMessage(error);
   } finally {
     loading.value = false;
   }
@@ -52,7 +76,8 @@ const handleLogin = async () => {
 
 onMounted(async () => {
   setMaterialInput();
-  const token = authStore.loadTokenFromLocalStorage();
+  form.password = "";
+  const token = authStore.loadTokenFromStorage();
   if (!token) return;
   try {
     const session = await authStore.checkSession();
@@ -127,21 +152,22 @@ onMounted(async () => {
                     class="input-group-outline my-3"
                     :label="{ text: 'Email', class: 'form-label' }"
                     type="email"
-                    v-model= "email"
+                    v-model="form.email"
                   />
                   <MaterialInput
                     id="password"
                     class="input-group-outline mb-3"
                     :label="{ text: 'Contraseña', class: 'form-label' }"
                     type="password"
-                    modelValue="********"
-                    :disabled="true"
+                    v-model="form.password"
+                    autocomplete="current-password"
                   />
                   <MaterialSwitch
                     class="d-flex align-items-center mb-3"
                     id="rememberMe"
                     labelClass="mb-0 ms-3"
-                    unchecked
+                     :checked="rememberMe"
+                    @change="handleRememberMeChange"
                     >Recuerdame
                   </MaterialSwitch>
                     <!-- Mostrar errores si existen -->

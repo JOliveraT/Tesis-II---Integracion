@@ -202,7 +202,7 @@ const router = createRouter({
 // Protección de rutas
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
-  const token = authStore.loadTokenFromLocalStorage();
+  const token = authStore.loadTokenFromStorage();
 
   const privateRouteNames = [
     'testdashboard',
