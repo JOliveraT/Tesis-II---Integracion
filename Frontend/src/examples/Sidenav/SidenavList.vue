@@ -54,7 +54,7 @@ export default {
           navText="Dashboard"
         >
           <template v-slot:icon>
-            <i class="material-icons-round opacity-10 fs-5">dashboard</i>
+            <i class="material-icons-round fs-5">dashboard</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -75,7 +75,7 @@ export default {
           navText="Sorteo"
         >
           <template v-slot:icon>
-            <i class="material-icons-round opacity-10 fs-5">table_view</i>
+            <i class="material-icons-round fs-5">table_view</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -88,7 +88,7 @@ export default {
           navText="Facturación"
         >
           <template v-slot:icon>
-            <i class="material-icons-round opacity-10 fs-5">receipt_long</i>
+            <i class="material-icons-round fs-5">receipt_long</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -101,7 +101,7 @@ export default {
           navText="Notificaciones"
         >
           <template v-slot:icon>
-            <i class="material-icons-round opacity-10 fs-5">notifications</i>
+            <i class="material-icons-round fs-5">notifications</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -122,7 +122,7 @@ export default {
           navText="Perfil"
         >
           <template v-slot:icon>
-            <i class="material-icons-round opacity-10 fs-5">person</i>
+            <i class="material-icons-round fs-5">person</i>
           </template>
         </sidenav-collapse>
       </li>
@@ -135,7 +135,7 @@ export default {
           @click.prevent="handleLogout"
         >
           <div class="text-center d-flex align-items-center justify-content-center me-2">
-            <i class="material-icons-round opacity-10 fs-5">logout</i>
+            <i class="material-icons-round fs-5" :class="sidenavTextClass">logout</i>
           </div>
           <span class="nav-link-text ms-1" :class="sidenavTextClass">Cerrar sesión</span>
         </a>

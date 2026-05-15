@@ -1,4 +1,5 @@
 <script>
+import { computed } from "vue";
 import { useAppStore } from "@/stores";
 import SidenavList from "./SidenavList.vue";
 import logo from "@/assets/img/pixelgift_logo_white.png";
@@ -18,9 +19,18 @@ export default {
   setup() {
     const appStore = useAppStore();
 
+    const isLightText = computed(() => {
+      const isWhite = appStore.sidebarType === "bg-white";
+      const isTransparentLight = appStore.sidebarType === "bg-transparent" && !appStore.isDarkMode;
+      return !(isWhite || isTransparentLight);
+    });
+
+    const brandTextClass = computed(() => (isLightText.value ? "text-white" : "text-dark"));
+
     return {
       sidebarType: appStore.sidebarType,
       isDarkMode: appStore.isDarkMode,
+      brandTextClass,
     };
   },
 };
@@ -49,7 +59,7 @@ export default {
           class="navbar-brand-img h-100"
           alt="main_logo"
         />
-        <span class="ms-2 font-weight-bold text-white"
+        <span class="ms-2 font-weight-bold" :class="brandTextClass"
           >Pixel Gift</span
         >
       </a>
