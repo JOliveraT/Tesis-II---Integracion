@@ -1,6 +1,7 @@
 <script>
 import { computed } from "vue";
 import { useAppStore } from "@/stores";
+import { useSidenavContrast } from "./useSidenavContrast";
 import { useRoute } from "vue-router";
 
 export default {

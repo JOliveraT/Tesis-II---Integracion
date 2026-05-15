@@ -20,7 +20,6 @@ export default {
     };
 
     const sidebar = (type) => {
-      //store.setSidebarType(type); // Cambiar el tipo de sidebar
       store.sidebarType = type;
        // ahora, actualizamos el DOM manualmente
       const sidenav = document.querySelector("#sidenav-main");

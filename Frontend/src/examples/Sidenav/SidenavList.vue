@@ -3,6 +3,7 @@ import SidenavCollapse from "./SidenavCollapse.vue";
 import { useAppStore } from "@/stores";
 import { useAuthStore } from "@/stores/authStore";
 import { computed } from "vue";
+import { useSidenavContrast } from "./useSidenavContrast";
 import { useRouter } from "vue-router";
 
 export default {

@@ -1,6 +1,7 @@
 <script>
 import { computed } from "vue";
 import { useAppStore } from "@/stores";
+import { useSidenavContrast } from "./useSidenavContrast";
 import SidenavList from "./SidenavList.vue";
 import logo from "@/assets/img/pixelgift_logo_white.png";
 import logoDark from "@/assets/img/pixelgift_logo_darkblue.png";
