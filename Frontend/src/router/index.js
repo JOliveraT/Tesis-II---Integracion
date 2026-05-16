@@ -35,6 +35,7 @@ import DashboardLayout from "../layouts/dashboard/DashboardLayout.vue";
 import Dashboard from "../views/Dashboard/Dashboard.vue";
 import Draw from "../views/Dashboard/draw.vue";
 import AnimacionSorteoView from "@/views/Dashboard/AnimacionSorteoView.vue";
+import ProfileView from "@/views/profile/Profile.vue";
 
 const router = createRouter({
   history: createWebHistory(/*import.meta.env.BASE_URL*/),
@@ -72,6 +73,12 @@ const router = createRouter({
           path: "draw",
           name: "Draws",
           component: Draw,
+        },
+        {
+          path: "profile",
+          name: "Profile",
+          component: ProfileView,
+          alias: ["/profile"],
         },
       ],
     },
@@ -228,6 +235,7 @@ router.beforeEach(async (to, from, next) => {
     'Dashboard',
     'Draws',
     'DrawAnimation',
+    'Profile',
   ];
 
   const requiresAuth = to.matched.some((record) => record.meta.requiresAuth) || privateRouteNames.includes(to.name);
