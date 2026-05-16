@@ -78,7 +78,7 @@ export default {
       </li>
       <li class="nav-item">
         <sidenav-collapse
-          url="#"
+          url="/dashboard-layout/profile"
           :aria-controls="''"
           v-bind:collapse="false"
           collapseRef="billing"
@@ -112,7 +112,7 @@ export default {
       </li>
       <li class="nav-item">
         <sidenav-collapse
-          url="#"
+          url="/dashboard-layout/profile"
           :aria-controls="''"
           v-bind:collapse="false"
           collapseRef="profile"
