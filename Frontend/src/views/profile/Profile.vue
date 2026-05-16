@@ -31,20 +31,39 @@
 
           <div class="col-12 col-lg-auto ms-lg-auto">
             <div class="nav-wrapper position-relative end-0">
-              <ul class="nav nav-pills nav-fill profile-tabs p-1" role="tablist">
+              <ul ref="tabsWrapperRef" class="nav nav-pills nav-fill profile-tabs p-1" role="tablist">
+                <div class="moving-tab" :style="movingTabStyle" aria-hidden="true"></div>
                 <li class="nav-item">
-                  <button class="nav-link mb-0 px-3 py-2" :class="{ active: activeTab === 'app' }" @click="setActiveTab('app')" type="button">
-                    App
+                  <button :ref="(el) => setTabButtonRef('app', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'app' }" @click="setActiveTab('app')" type="button">
+                    <span class="tab-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M14 4C11.79 4 10 5.79 10 8V34C10 36.21 11.79 38 14 38H28C30.21 38 32 36.21 32 34V8C32 5.79 30.21 4 28 4H14Z" stroke="currentColor" stroke-width="3"/>
+                        <path d="M10 13H32" stroke="currentColor" stroke-width="3"/>
+                      </svg>
+                    </span>
+                    <span>App</span>
                   </button>
                 </li>
                 <li class="nav-item">
-                  <button class="nav-link mb-0 px-3 py-2" :class="{ active: activeTab === 'messages' }" @click="setActiveTab('messages')" type="button">
-                    Messages
+                  <button :ref="(el) => setTabButtonRef('messages', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'messages' }" @click="setActiveTab('messages')" type="button">
+                    <span class="tab-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M7 10C7 8.34 8.34 7 10 7H32C33.66 7 35 8.34 35 10V30C35 31.66 33.66 33 32 33H14L7 38V10Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+                        <path d="M13 16H29M13 22H24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                      </svg>
+                    </span>
+                    <span>Messages</span>
                   </button>
                 </li>
                 <li class="nav-item">
-                  <button class="nav-link mb-0 px-3 py-2" :class="{ active: activeTab === 'settings' }" @click="setActiveTab('settings')" type="button">
-                    Settings
+                  <button :ref="(el) => setTabButtonRef('settings', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'settings' }" @click="setActiveTab('settings')" type="button">
+                    <span class="tab-icon" aria-hidden="true">
+                      <svg width="16" height="16" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M21 15.5A5.5 5.5 0 1 0 21 26.5A5.5 5.5 0 1 0 21 15.5Z" stroke="currentColor" stroke-width="3"/>
+                        <path d="M33.4 23.7L35.5 21L33.4 18.3L29.8 18L28.5 14.8L25 13.8L23.2 10.6H18.8L17 13.8L13.5 14.8L12.2 18L8.6 18.3L6.5 21L8.6 23.7L12.2 24L13.5 27.2L17 28.2L18.8 31.4H23.2L25 28.2L28.5 27.2L29.8 24L33.4 23.7Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+                      </svg>
+                    </span>
+                    <span>Settings</span>
                   </button>
                 </li>
               </ul>
@@ -214,12 +233,15 @@
 </template>
 
 <script setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 
 const authStore = useAuthStore();
 const loading = ref(true);
 const activeTab = ref('app');
+const tabsWrapperRef = ref(null);
+const tabButtonRefs = ref({});
+const movingTabStyle = ref({ transform: 'translate3d(0px, 0, 0)', width: '0px', opacity: 0 });
 
 const currentUser = computed(() => authStore.user);
 
@@ -259,6 +281,30 @@ const setActiveTab = (tab) => {
   activeTab.value = tab;
 };
 
+const setTabButtonRef = (tab, el) => {
+  if (el) {
+    tabButtonRefs.value[tab] = el;
+    return;
+  }
+  delete tabButtonRefs.value[tab];
+};
+
+const updateMovingTab = async () => {
+  await nextTick();
+  const activeButton = tabButtonRefs.value[activeTab.value];
+  const wrapper = tabsWrapperRef.value;
+  if (!activeButton || !wrapper) return;
+
+  const left = activeButton.offsetLeft;
+  const width = activeButton.offsetWidth;
+
+  movingTabStyle.value = {
+    transform: `translate3d(${left}px, 0, 0)`,
+    width: `${width}px`,
+    opacity: 1
+  };
+};
+
 const handleToggleConnection = (type, key) => {
   const list = type === 'platform' ? platformConnections.value : socialConnections.value;
   const item = list.find((entry) => entry.key === key);
@@ -292,28 +338,79 @@ watch(
 );
 
 onMounted(async () => {
-  syncTheme();
-  themeObserver = new MutationObserver(syncTheme);
-  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-  window.addEventListener('resize', updateMovingTab);
-
   if (!authStore.user) {
     await authStore.checkSession();
   }
   loading.value = false;
-  updateMovingTab();
+  await updateMovingTab();
+  window.addEventListener('resize', updateMovingTab);
 });
 
 onBeforeUnmount(() => {
-  themeObserver?.disconnect();
   window.removeEventListener('resize', updateMovingTab);
+});
+
+watch(activeTab, () => {
+  updateMovingTab();
+});
+
+watch(loading, (value) => {
+  if (!value) {
+    updateMovingTab();
+  }
 });
 </script>
 
 <style scoped>
 .profile-tabs {
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--bs-body-bg, rgba(255, 255, 255, 0.9));
   border-radius: 0.75rem;
+  position: relative;
+  isolation: isolate;
+}
+
+.profile-tabs .nav-item {
+  position: relative;
+  z-index: 2;
+}
+
+.profile-tab-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  color: var(--bs-body-color);
+  transition: color 0.2s ease;
+}
+
+.profile-tab-link .tab-icon {
+  display: inline-flex;
+  line-height: 0;
+}
+
+.profile-tab-link .tab-icon svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.profile-tab-link.active {
+  color: #fff;
+}
+
+.moving-tab {
+  position: absolute;
+  top: 0.25rem;
+  left: 0;
+  height: calc(100% - 0.5rem);
+  border-radius: 0.5rem;
+  background: linear-gradient(195deg, #66bb6a, #43a047);
+  transition: transform 0.3s ease, width 0.3s ease, opacity 0.2s ease;
+  z-index: 1;
+  box-shadow: 0 4px 12px rgba(67, 160, 71, 0.35);
+}
+
+:global(body.dark-version) .profile-tab-link:not(.active) {
+  color: rgba(255, 255, 255, 0.85);
 }
 
 .connection-item {
