@@ -31,10 +31,10 @@
 
           <div class="col-12 col-lg-auto ms-lg-auto">
             <div class="nav-wrapper position-relative end-0">
-              <ul ref="tabsWrapperRef" class="nav nav-pills nav-fill profile-tabs p-1" role="tablist">
+              <ul ref="tabsWrapperRef" class="p-1 bg-transparent nav nav-pills nav-fill profile-tabs" role="tablist">
                 <div class="moving-tab" :style="movingTabStyle" aria-hidden="true"></div>
                 <li class="nav-item">
-                  <button :ref="(el) => setTabButtonRef('app', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'app' }" @click="setActiveTab('app')" type="button">
+                  <button :ref="(el) => setTabButtonRef('app', el)" class="px-0 py-1 mb-0 nav-link profile-tab-link" :class="{ active: activeTab === 'app' }" @click="setActiveTab('app')" type="button">
                     <span class="tab-icon" aria-hidden="true">
                       <svg width="16" height="16" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
                         <path class="color-background" d="M22.7597 19.309 38.8987 11.2395C39.3927 10.9925 39.5929 10.3919 39.3459 9.89788C39.2492 9.70436 39.0922 9.54745 38.8987 9.45068L20.2742 0.137813C19.9054 -0.04725 19.4696 -0.04725 19.0995 0.137813L3.10117 8.13816C2.60721 8.38518 2.40702 8.98586 2.65404 9.47983C2.7508 9.67333 2.90771 9.83023 3.10122 9.92699L21.8653 19.309C22.1468 19.4498 22.4782 19.4498 22.7597 19.309Z" />
@@ -46,7 +46,7 @@
                   </button>
                 </li>
                 <li class="nav-item">
-                  <button :ref="(el) => setTabButtonRef('messages', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'messages' }" @click="setActiveTab('messages')" type="button">
+                  <button :ref="(el) => setTabButtonRef('messages', el)" class="px-0 py-1 mb-0 nav-link profile-tab-link" :class="{ active: activeTab === 'messages' }" @click="setActiveTab('messages')" type="button">
                     <span class="tab-icon" aria-hidden="true">
                       <svg width="16" height="16" viewBox="0 0 40 44" xmlns="http://www.w3.org/2000/svg">
                         <path class="color-background" d="M40 40H36.3636V3.63636H5.45455V0H38.1818C39.1855 0 40 0.814545 40 1.81818V40Z" opacity=".6" />
@@ -57,7 +57,7 @@
                   </button>
                 </li>
                 <li class="nav-item">
-                  <button :ref="(el) => setTabButtonRef('settings', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'settings' }" @click="setActiveTab('settings')" type="button">
+                  <button :ref="(el) => setTabButtonRef('settings', el)" class="px-0 py-1 mb-0 nav-link profile-tab-link" :class="{ active: activeTab === 'settings' }" @click="setActiveTab('settings')" type="button">
                     <span class="tab-icon" aria-hidden="true">
                       <svg width="16" height="16" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
                         <path class="color-background" d="M18.0883 15.7317L11.1783 8.82167L13.3333 6.66667L6.66667 0L0 6.66667L6.66667 13.3333L8.82167 11.1783L15.315 17.6717Z" opacity=".6" />
@@ -244,9 +244,6 @@ const activeTab = ref('app');
 const tabsWrapperRef = ref(null);
 const tabButtonRefs = ref({});
 const movingTabStyle = ref({ transform: 'translate3d(0px, 0, 0)', width: '0px', opacity: 0 });
-const isDarkMode = ref(document.body.classList.contains('dark-version'));
-let themeObserver;
-
 const currentUser = computed(() => authStore.user);
 
 const editableProfile = reactive({
@@ -347,16 +344,11 @@ onMounted(async () => {
   }
   loading.value = false;
   await updateMovingTab();
-  themeObserver = new MutationObserver(() => {
-    isDarkMode.value = document.body.classList.contains('dark-version');
-  });
-  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
   window.addEventListener('resize', updateMovingTab);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateMovingTab);
-  themeObserver?.disconnect();
 });
 
 watch(activeTab, () => {
@@ -372,7 +364,7 @@ watch(loading, (value) => {
 
 <style scoped>
 .profile-tabs {
-  background: var(--bs-body-bg, rgba(255, 255, 255, 0.9));
+  background: transparent;
   border-radius: 0.75rem;
   position: relative;
   isolation: isolate;
@@ -387,9 +379,11 @@ watch(loading, (value) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  color: var(--bs-body-color);
+  gap: 0.25rem;
+  color: var(--bs-body-color, #344767);
   transition: color 0.2s ease;
+  position: relative;
+  z-index: 2;
 }
 
 .profile-tab-link .tab-icon {
@@ -407,23 +401,32 @@ watch(loading, (value) => {
 }
 
 .profile-tab-link.active {
-  color: #fff;
+  color: #ffffff !important;
 }
 
 .profile-tab-link:not(.active) {
-  color: v-bind('isDarkMode ? "rgba(255, 255, 255, 0.85)" : "#344767"');
+  color: inherit;
+}
+
+:global(body.dark-version) .profile-tab-link:not(.active) {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+:global(body:not(.dark-version)) .profile-tab-link:not(.active) {
+  color: #344767;
 }
 
 .moving-tab {
   position: absolute;
-  top: 0.25rem;
+  top: 0;
   left: 0;
-  height: calc(100% - 0.5rem);
+  height: 100%;
   border-radius: 0.5rem;
   background: linear-gradient(195deg, #66bb6a, #43a047);
   transition: transform 0.3s ease, width 0.3s ease, opacity 0.2s ease;
   z-index: 1;
-  box-shadow: 0 4px 12px rgba(67, 160, 71, 0.35);
+  box-shadow: 0 1px 5px 1px #ddd;
+  padding: 0.5rem 1rem;
 }
 
 .connection-item {
