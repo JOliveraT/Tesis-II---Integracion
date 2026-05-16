@@ -292,10 +292,21 @@ watch(
 );
 
 onMounted(async () => {
+  syncTheme();
+  themeObserver = new MutationObserver(syncTheme);
+  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
+  window.addEventListener('resize', updateMovingTab);
+
   if (!authStore.user) {
     await authStore.checkSession();
   }
   loading.value = false;
+  updateMovingTab();
+});
+
+onBeforeUnmount(() => {
+  themeObserver?.disconnect();
+  window.removeEventListener('resize', updateMovingTab);
 });
 </script>
 
