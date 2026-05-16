@@ -36,9 +36,10 @@
                 <li class="nav-item">
                   <button :ref="(el) => setTabButtonRef('app', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'app' }" @click="setActiveTab('app')" type="button">
                     <span class="tab-icon" aria-hidden="true">
-                      <svg width="16" height="16" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M14 4C11.79 4 10 5.79 10 8V34C10 36.21 11.79 38 14 38H28C30.21 38 32 36.21 32 34V8C32 5.79 30.21 4 28 4H14Z" stroke="currentColor" stroke-width="3"/>
-                        <path d="M10 13H32" stroke="currentColor" stroke-width="3"/>
+                      <svg width="16" height="16" viewBox="0 0 42 42" xmlns="http://www.w3.org/2000/svg">
+                        <path class="color-background" d="M22.7597 19.309 38.8987 11.2395C39.3927 10.9925 39.5929 10.3919 39.3459 9.89788C39.2492 9.70436 39.0922 9.54745 38.8987 9.45068L20.2742 0.137813C19.9054 -0.04725 19.4696 -0.04725 19.0995 0.137813L3.10117 8.13816C2.60721 8.38518 2.40702 8.98586 2.65404 9.47983C2.7508 9.67333 2.90771 9.83023 3.10122 9.92699L21.8653 19.309C22.1468 19.4498 22.4782 19.4498 22.7597 19.309Z" />
+                        <path class="color-background" d="M23.625 22.4292V39.8805C23.625 40.4328 24.0727 40.8805 24.625 40.8805C24.7803 40.8805 24.9334 40.8444 25.0722 40.775L41.2742 32.6734C41.7191 32.4516 42 31.9974 42 31.5V14.2417C42 13.6894 41.5523 13.2417 41 13.2417C40.8448 13.2417 40.6916 13.2778 40.5528 13.3472L24.1778 21.5347C23.839 21.7041 23.625 22.0504 23.625 22.4292Z" opacity=".7" />
+                        <path class="color-background" d="M20.4472 21.5347L1.44721 12.0347C0.953235 11.7877 0.352562 11.988 0.105573 12.4819C0.0361451 12.6208 0 12.7739 0 12.9292V30.1875C0 30.6849 0.280875 31.1391 0.725813 31.3622L19.5528 40.7751C20.0468 41.0221 20.6475 40.8218 20.8944 40.3278C20.9639 40.189 21 40.0359 21 39.8806V22.4292C21 22.0504 20.786 21.7041 20.4472 21.5347Z" opacity=".7" />
                       </svg>
                     </span>
                     <span>App</span>
@@ -47,9 +48,9 @@
                 <li class="nav-item">
                   <button :ref="(el) => setTabButtonRef('messages', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'messages' }" @click="setActiveTab('messages')" type="button">
                     <span class="tab-icon" aria-hidden="true">
-                      <svg width="16" height="16" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M7 10C7 8.34 8.34 7 10 7H32C33.66 7 35 8.34 35 10V30C35 31.66 33.66 33 32 33H14L7 38V10Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
-                        <path d="M13 16H29M13 22H24" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+                      <svg width="16" height="16" viewBox="0 0 40 44" xmlns="http://www.w3.org/2000/svg">
+                        <path class="color-background" d="M40 40H36.3636V3.63636H5.45455V0H38.1818C39.1855 0 40 0.814545 40 1.81818V40Z" opacity=".6" />
+                        <path class="color-background" d="M30.9091 7.27273H1.81818C0.814545 7.27273 0 8.08727 0 9.09091V41.8182C0 42.8218 0.814545 43.6364 1.81818 43.6364H30.9091C31.9127 43.6364 32.7273 42.8218 32.7273 41.8182V9.09091C32.7273 8.08727 31.9127 7.27273 30.9091 7.27273ZM18.1818 34.5455H7.27273V30.9091H18.1818V34.5455ZM25.4545 27.2727H7.27273V23.6364H25.4545V27.2727ZM25.4545 20H7.27273V16.3636H25.4545V20Z" />
                       </svg>
                     </span>
                     <span>Messages</span>
@@ -58,9 +59,10 @@
                 <li class="nav-item">
                   <button :ref="(el) => setTabButtonRef('settings', el)" class="nav-link mb-0 px-3 py-2 profile-tab-link" :class="{ active: activeTab === 'settings' }" @click="setActiveTab('settings')" type="button">
                     <span class="tab-icon" aria-hidden="true">
-                      <svg width="16" height="16" viewBox="0 0 42 42" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M21 15.5A5.5 5.5 0 1 0 21 26.5A5.5 5.5 0 1 0 21 15.5Z" stroke="currentColor" stroke-width="3"/>
-                        <path d="M33.4 23.7L35.5 21L33.4 18.3L29.8 18L28.5 14.8L25 13.8L23.2 10.6H18.8L17 13.8L13.5 14.8L12.2 18L8.6 18.3L6.5 21L8.6 23.7L12.2 24L13.5 27.2L17 28.2L18.8 31.4H23.2L25 28.2L28.5 27.2L29.8 24L33.4 23.7Z" stroke="currentColor" stroke-width="3" stroke-linejoin="round"/>
+                      <svg width="16" height="16" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
+                        <path class="color-background" d="M18.0883 15.7317L11.1783 8.82167L13.3333 6.66667L6.66667 0L0 6.66667L6.66667 13.3333L8.82167 11.1783L15.315 17.6717Z" opacity=".6" />
+                        <path class="color-background" d="M31.5667 23.2333C31.0517 23.2933 30.53 23.3333 30 23.3333C29.4917 23.3333 28.9867 23.3033 28.48 23.245L22.4117 30.7433L29.9417 38.2733C32.2433 40.575 35.9733 40.575 38.275 38.2733C40.5767 35.9717 40.5767 32.2417 38.275 29.94L31.5667 23.2333Z" opacity=".6" />
+                        <path class="color-background" d="M33.785 11.285L28.715 6.215L34.0617 0.868333C32.82 0.315 31.4483 0 30 0C24.4767 0 20 4.47667 20 10C20 10.99 20.1483 11.9433 20.4167 12.8467L2.435 27.3967C0.95 28.7083 0.0633333 30.595 0.00333333 32.5733C-0.0583333 34.5533 0.71 36.4917 2.11 37.89C3.47 39.2517 5.27833 40 7.20167 40C9.26667 40 11.2367 39.1133 12.6033 37.565L27.1533 19.5833C28.0567 19.8517 29.01 20 30 20C35.5233 20 40 15.5233 40 10C40 8.55167 39.685 7.18 39.1317 5.93667L33.785 11.285Z" />
                       </svg>
                     </span>
                     <span>Settings</span>
@@ -242,6 +244,8 @@ const activeTab = ref('app');
 const tabsWrapperRef = ref(null);
 const tabButtonRefs = ref({});
 const movingTabStyle = ref({ transform: 'translate3d(0px, 0, 0)', width: '0px', opacity: 0 });
+const isDarkMode = ref(document.body.classList.contains('dark-version'));
+let themeObserver;
 
 const currentUser = computed(() => authStore.user);
 
@@ -343,11 +347,16 @@ onMounted(async () => {
   }
   loading.value = false;
   await updateMovingTab();
+  themeObserver = new MutationObserver(() => {
+    isDarkMode.value = document.body.classList.contains('dark-version');
+  });
+  themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
   window.addEventListener('resize', updateMovingTab);
 });
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateMovingTab);
+  themeObserver?.disconnect();
 });
 
 watch(activeTab, () => {
@@ -393,8 +402,16 @@ watch(loading, (value) => {
   height: 1rem;
 }
 
+.profile-tab-link .color-background {
+  fill: currentColor;
+}
+
 .profile-tab-link.active {
   color: #fff;
+}
+
+.profile-tab-link:not(.active) {
+  color: v-bind('isDarkMode ? "rgba(255, 255, 255, 0.85)" : "#344767"');
 }
 
 .moving-tab {
@@ -407,10 +424,6 @@ watch(loading, (value) => {
   transition: transform 0.3s ease, width 0.3s ease, opacity 0.2s ease;
   z-index: 1;
   box-shadow: 0 4px 12px rgba(67, 160, 71, 0.35);
-}
-
-:global(body.dark-version) .profile-tab-link:not(.active) {
-  color: rgba(255, 255, 255, 0.85);
 }
 
 .connection-item {
