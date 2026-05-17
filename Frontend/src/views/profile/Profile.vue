@@ -161,6 +161,7 @@
                     <p class="text-sm mb-0">Conecta tu cuenta para publicar y sincronizar actividad.</p>
                   </div>
                   <div class="card-body p-3">
+                    <p v-if="twitchActionError" class="text-xs text-danger mb-3">{{ twitchActionError }}</p>
                     <div v-for="platform in platformConnections" :key="platform.key" class="connection-item d-flex align-items-center justify-content-between mb-3">
                       <div>
                         <p class="mb-0 fw-bold text-dark">{{ platform.label }}</p>
@@ -287,7 +288,7 @@ const editableProfile = reactive({
 
 const showTwitchDisconnectModal = ref(false);
 const twitchDisconnectLoading = ref(false);
-const twitchCallbackLoading = ref(false);
+const twitchActionError = ref('');
 
 const twitchButtonClass = computed(() => {
   const darkMode = document?.body?.classList?.contains('dark-version');
@@ -380,15 +381,19 @@ const handleTwitchCallbackIfPresent = async () => {
 
   if (!code && !hasError && !hasErrorDescription) return;
 
-  twitchCallbackLoading.value = true;
+  twitchActionError.value = '';
 
   try {
     if (code) {
       await twitchStore.completeCallback(code);
       syncTwitchConnection();
+      return;
+    }
+
+    if (hasError || hasErrorDescription) {
+      twitchActionError.value = 'La autorización de Twitch fue cancelada o no se pudo completar.';
     }
   } finally {
-    twitchCallbackLoading.value = false;
     await router.replace({ path: '/dashboard-layout/profile', query: {} });
   }
 };
@@ -423,11 +428,14 @@ const redirectToTwitchOAuth = async () => {
 const confirmTwitchDisconnect = async () => {
   if (twitchDisconnectLoading.value) return;
   twitchDisconnectLoading.value = true;
+  twitchActionError.value = '';
   try {
-    await twitchStore.unlinkChannel();
+    await twitchStore.disconnect();
     await refreshTwitchConnection();
-    closeTwitchDisconnectModal();
+  } catch (error) {
+    twitchActionError.value = 'No pudimos desvincular Twitch. Intenta de nuevo.';
   } finally {
+    showTwitchDisconnectModal.value = false;
     twitchDisconnectLoading.value = false;
   }
 };
@@ -448,6 +456,7 @@ const handleToggleConnection = async (type, key) => {
   }
 
   item.pending = true;
+  twitchActionError.value = '';
 
   try {
     if (twitchStore.connected) {
@@ -472,14 +481,26 @@ const handleToggleConnection = async (type, key) => {
 watch(showTwitchDisconnectModal, (visible) => {
   const twitchItem = getConnectionItem('platform', 'twitch');
   if (!twitchItem) return;
-  twitchItem.pending = visible || twitchCallbackLoading.value;
+  twitchItem.pending = visible || twitchStore.callbackProcessing || twitchStore.actionLoading;
 });
 
-watch(twitchCallbackLoading, (isLoading) => {
+watch(
+  () => twitchStore.callbackProcessing,
+  (isLoading) => {
+    const twitchItem = getConnectionItem('platform', 'twitch');
+    if (!twitchItem) return;
+    twitchItem.pending = isLoading || showTwitchDisconnectModal.value || twitchStore.actionLoading;
+  }
+);
+
+watch(
+  () => twitchStore.actionLoading,
+  (isLoading) => {
   const twitchItem = getConnectionItem('platform', 'twitch');
   if (!twitchItem) return;
-  twitchItem.pending = isLoading || showTwitchDisconnectModal.value;
-});
+    twitchItem.pending = isLoading || showTwitchDisconnectModal.value || twitchStore.callbackProcessing;
+  }
+);
 
 const handleUpdateDisplayName = () => {
   // TODO: Integrar endpoint backend para actualizar display_name
