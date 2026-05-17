@@ -73,6 +73,41 @@
           </div>
         </div>
 
+
+
+        <Transition name="twitch-modal">
+          <div v-if="showTwitchAuthModal" class="twitch-modal-backdrop" @click.self="closeTwitchAuthModal">
+            <div class="card twitch-auth-modal" role="dialog" aria-modal="true" aria-label="Autorización de Twitch">
+              <div class="card-header pb-0 p-3 d-flex align-items-center justify-content-between">
+                <div class="d-flex align-items-center">
+                  <span class="twitch-icon me-2" aria-hidden="true">◆</span>
+                  <div>
+                    <h6 class="mb-0">Vincular cuenta de Twitch</h6>
+                    <p class="text-xs text-muted mb-0">{{ twitchSummaryText }}</p>
+                  </div>
+                </div>
+                <button class="btn btn-link text-secondary p-0 mb-0" :disabled="twitchAuthLoading || twitchCallbackLoading" @click="closeTwitchAuthModal">✕</button>
+              </div>
+              <div class="card-body pt-3">
+                <p class="text-sm mb-2">Permisos solicitados:</p>
+                <ul class="list-group mb-3">
+                  <li v-for="scope in twitchRequiredScopes" :key="scope.key" class="list-group-item border-0 ps-0 py-1">
+                    <span class="badge bg-gradient-dark me-2">{{ scope.key }}</span>
+                    <span class="text-sm">{{ scope.description }}</span>
+                  </li>
+                </ul>
+                <p v-if="twitchCallbackMessage" class="text-sm mb-0" :class="twitchStore.connected ? 'text-success' : 'text-warning'">{{ twitchCallbackMessage }}</p>
+              </div>
+              <div class="card-footer pt-0 d-flex justify-content-end gap-2">
+                <button class="btn btn-outline-secondary btn-sm mb-0" :disabled="twitchAuthLoading || twitchCallbackLoading" @click="closeTwitchAuthModal">Cancelar</button>
+                <button class="btn bg-gradient-success btn-sm mb-0" :disabled="twitchAuthLoading || twitchCallbackLoading || !twitchAuthUrl" @click="proceedTwitchAuthorization">
+                  {{ twitchAuthLoading ? 'Preparando...' : twitchCallbackLoading ? 'Procesando...' : 'Autorizar' }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </Transition>
+
         <Transition name="profile-tab" mode="out-in">
           <div :key="activeTab" class="tab-content mt-4">
             <div v-if="activeTab === 'app'" class="row">
@@ -238,11 +273,12 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useTwitchStore } from '@/stores/twitchStore';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 
 const authStore = useAuthStore();
 const twitchStore = useTwitchStore();
 const router = useRouter();
+const route = useRoute();
 const loading = ref(true);
 const activeTab = ref('app');
 const tabsWrapperRef = ref(null);
@@ -254,6 +290,14 @@ const editableProfile = reactive({
   display_name: '',
   password: ''
 });
+
+
+const showTwitchAuthModal = ref(false);
+const twitchAuthUrl = ref('');
+const twitchAuthLoading = ref(false);
+const twitchCallbackLoading = ref(false);
+const twitchCallbackMessage = ref('');
+const twitchRequiredScopes = ref([]);
 
 const platformConnections = ref([
   { key: 'twitch', label: 'Twitch', description: 'Streaming y eventos en vivo.', connected: false, pending: false },
@@ -317,6 +361,86 @@ const updateMovingTab = async () => {
 };
 
 
+const twitchSummaryText = computed(() => {
+  if (twitchStore.connected) {
+    return twitchStore.channel?.display_name
+      ? `Conectado como @${twitchStore.channel.display_name}`
+      : 'Cuenta de Twitch conectada';
+  }
+  return 'Aún no hay una cuenta de Twitch vinculada';
+});
+
+const buildScopeDescriptions = (payload) => {
+  const fallbackScopes = ['chat:read', 'chat:edit', 'channel:manage:redemptions'];
+  const scopes = payload?.scopes || payload?.scope || fallbackScopes;
+  const normalized = Array.isArray(scopes)
+    ? scopes
+    : String(scopes)
+      .split(/[\s,]+/)
+      .filter(Boolean);
+
+  const dictionary = {
+    'chat:read': 'Leer mensajes del chat del canal.',
+    'chat:edit': 'Enviar mensajes y respuestas automatizadas en chat.',
+    'channel:manage:redemptions': 'Gestionar recompensas de puntos del canal.'
+  };
+
+  return normalized.map((scope) => ({
+    key: scope,
+    description: dictionary[scope] || 'Permiso requerido para operar funciones de integración.'
+  }));
+};
+
+const openTwitchAuthModal = async () => {
+  twitchAuthLoading.value = true;
+  twitchCallbackMessage.value = '';
+  showTwitchAuthModal.value = true;
+
+  try {
+    const payload = await twitchStore.getAuthUrl();
+    twitchAuthUrl.value = payload?.auth_url || '';
+    twitchRequiredScopes.value = buildScopeDescriptions(payload);
+  } catch (error) {
+    twitchRequiredScopes.value = [];
+    twitchCallbackMessage.value = 'No se pudo preparar la autorización de Twitch. Intenta nuevamente.';
+    throw error;
+  } finally {
+    twitchAuthLoading.value = false;
+  }
+};
+
+const closeTwitchAuthModal = () => {
+  if (twitchAuthLoading.value || twitchCallbackLoading.value) return;
+  showTwitchAuthModal.value = false;
+};
+
+const proceedTwitchAuthorization = () => {
+  if (!twitchAuthUrl.value) return;
+  twitchCallbackLoading.value = true;
+  window.location.assign(twitchAuthUrl.value);
+};
+
+const handleTwitchCallbackIfPresent = async () => {
+  const code = typeof route.query.code === 'string' ? route.query.code : '';
+  if (!code) return;
+
+  twitchCallbackLoading.value = true;
+  showTwitchAuthModal.value = true;
+
+  try {
+    const data = await twitchStore.completeCallback(code);
+    twitchCallbackMessage.value = data?.message || 'Cuenta de Twitch conectada correctamente.';
+    syncTwitchConnection();
+  } finally {
+    twitchCallbackLoading.value = false;
+    await router.replace({ path: route.path, query: {} });
+    setTimeout(() => {
+      showTwitchAuthModal.value = false;
+    }, 1100);
+  }
+};
+
+
 const getConnectionItem = (type, key) => {
   const list = type === 'platform' ? platformConnections.value : socialConnections.value;
   return list.find((entry) => entry.key === key);
@@ -359,10 +483,7 @@ const handleToggleConnection = async (type, key) => {
       return;
     }
 
-    const { auth_url: authUrl } = await twitchStore.getAuthUrl();
-    if (authUrl) {
-      window.location.assign(authUrl);
-    }
+    await openTwitchAuthModal();
   } catch (error) {
     if (error?.response?.status === 401) {
       authStore.logout();
@@ -404,6 +525,7 @@ onMounted(async () => {
   }
 
   try {
+    await handleTwitchCallbackIfPresent();
     await refreshTwitchConnection();
   } catch (error) {
     if (error?.response?.status === 401) {
@@ -537,4 +659,57 @@ watch(loading, (value) => {
   opacity: 0;
   transform: translateY(12px);
 }
+
+
+.twitch-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 20, 35, 0.45);
+  backdrop-filter: blur(2px);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  z-index: 1300;
+}
+
+.twitch-auth-modal {
+  width: min(640px, 100%);
+  border-radius: 1rem;
+  box-shadow: 0 1.5rem 2rem rgba(0, 0, 0, 0.18);
+  border: 1px solid rgba(103, 116, 142, 0.22);
+}
+
+.twitch-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.5rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  background: linear-gradient(310deg, #7c3aed, #9333ea);
+  font-size: 0.8rem;
+}
+
+.twitch-modal-enter-active,
+.twitch-modal-leave-active {
+  transition: opacity 0.25s ease;
+}
+
+.twitch-modal-enter-active .twitch-auth-modal,
+.twitch-modal-leave-active .twitch-auth-modal {
+  transition: transform 0.25s ease, opacity 0.25s ease;
+}
+
+.twitch-modal-enter-from,
+.twitch-modal-leave-to {
+  opacity: 0;
+}
+
+.twitch-modal-enter-from .twitch-auth-modal,
+.twitch-modal-leave-to .twitch-auth-modal {
+  transform: translateY(12px) scale(0.98);
+  opacity: 0;
+}
+
 </style>
