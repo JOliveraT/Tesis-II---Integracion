@@ -109,7 +109,7 @@
                     <ul class="list-group">
                       <li class="text-sm border-0 list-group-item ps-0 d-flex justify-content-between">
                         <span><strong class="text-dark">Twitch</strong></span>
-                        <span class="badge bg-gradient-warning">Pendiente de integración</span>
+                        <span class="badge" :class="twitchStore.connected ? 'bg-gradient-success' : 'bg-gradient-warning'">{{ twitchStore.connected ? `Conectado${twitchStore.channel?.display_name ? ` · @${twitchStore.channel.display_name}` : ""}` : 'Sin vincular' }}</span>
                       </li>
                       <li class="text-sm border-0 list-group-item ps-0 d-flex justify-content-between">
                         <span><strong class="text-dark">Redes sociales</strong></span>
@@ -141,10 +141,10 @@
                       <button
                         class="btn btn-sm mb-0"
                         :class="platform.connected ? 'btn-outline-danger' : 'btn-outline-success'"
-                        :disabled="platform.pending"
+                        :disabled="platform.pending || platform.disabled"
                         @click="handleToggleConnection('platform', platform.key)"
                       >
-                        {{ platform.pending ? 'Procesando...' : platform.connected ? 'Desvincular' : 'Vincular' }}
+                        <span class="me-1" aria-hidden="true">{{ platform.pending ? '⏳' : platform.connected ? '🔗' : '➕' }}</span>{{ platform.pending ? 'Procesando...' : platform.connected ? 'Desvincular' : 'Vincular' }}
                       </button>
                     </div>
                   </div>
@@ -237,8 +237,12 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { useAuthStore } from '@/stores/authStore';
+import { useTwitchStore } from '@/stores/twitchStore';
+import { useRouter } from 'vue-router';
 
 const authStore = useAuthStore();
+const twitchStore = useTwitchStore();
+const router = useRouter();
 const loading = ref(true);
 const activeTab = ref('app');
 const tabsWrapperRef = ref(null);
@@ -253,8 +257,8 @@ const editableProfile = reactive({
 
 const platformConnections = ref([
   { key: 'twitch', label: 'Twitch', description: 'Streaming y eventos en vivo.', connected: false, pending: false },
-  { key: 'discord', label: 'Discord', description: 'Comunidad y notificaciones.', connected: false, pending: false },
-  { key: 'youtube', label: 'YouTube', description: 'Contenido de video.', connected: false, pending: false }
+  { key: 'discord', label: 'Discord', description: 'Comunidad y notificaciones.', connected: false, pending: false, disabled: true },
+  { key: 'youtube', label: 'YouTube', description: 'Contenido de video.', connected: false, pending: false, disabled: true }
 ]);
 
 const socialConnections = ref([
@@ -312,18 +316,62 @@ const updateMovingTab = async () => {
   };
 };
 
-const handleToggleConnection = (type, key) => {
+
+const getConnectionItem = (type, key) => {
   const list = type === 'platform' ? platformConnections.value : socialConnections.value;
-  const item = list.find((entry) => entry.key === key);
-  if (!item) return;
+  return list.find((entry) => entry.key === key);
+};
+
+const syncTwitchConnection = () => {
+  const twitchItem = getConnectionItem('platform', 'twitch');
+  if (!twitchItem) return;
+  twitchItem.connected = twitchStore.connected;
+};
+
+const refreshTwitchConnection = async () => {
+  await twitchStore.refreshConnection();
+  syncTwitchConnection();
+};
+
+const handleToggleConnection = async (type, key) => {
+  const item = getConnectionItem(type, key);
+  if (!item || item.pending || item.disabled) return;
+
+  if (!authStore.user || !authStore.token) {
+    authStore.logout();
+    await router.push('/dashboard');
+    return;
+  }
+
+  if (type !== 'platform' || key !== 'twitch') {
+    // TODO: Generalizar integración para otras plataformas (YouTube, Kick, redes sociales)
+    return;
+  }
 
   item.pending = true;
 
-  // TODO: Reemplazar por llamada real al backend (ej: /api/profile/connections/toggle)
-  setTimeout(() => {
-    item.connected = !item.connected;
+  try {
+    if (twitchStore.connected) {
+      const confirmed = window.confirm('¿Seguro que deseas desvincular tu cuenta de Twitch?');
+      if (!confirmed) return;
+      await twitchStore.unlinkChannel();
+      await refreshTwitchConnection();
+      return;
+    }
+
+    const { auth_url: authUrl } = await twitchStore.getAuthUrl();
+    if (authUrl) {
+      window.location.assign(authUrl);
+    }
+  } catch (error) {
+    if (error?.response?.status === 401) {
+      authStore.logout();
+      await router.push('/dashboard');
+    }
+    console.error('Error al gestionar conexión de Twitch', error);
+  } finally {
     item.pending = false;
-  }, 500);
+  }
 };
 
 const handleUpdateDisplayName = () => {
@@ -348,6 +396,23 @@ onMounted(async () => {
   if (!authStore.user) {
     await authStore.checkSession();
   }
+
+  if (!authStore.user || !authStore.token) {
+    authStore.logout();
+    await router.push('/dashboard');
+    return;
+  }
+
+  try {
+    await refreshTwitchConnection();
+  } catch (error) {
+    if (error?.response?.status === 401) {
+      authStore.logout();
+      await router.push('/dashboard');
+      return;
+    }
+  }
+
   loading.value = false;
   await updateMovingTab();
   window.addEventListener('resize', updateMovingTab);

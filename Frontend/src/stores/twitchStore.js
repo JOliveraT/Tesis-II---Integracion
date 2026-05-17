@@ -2,19 +2,30 @@ import { defineStore } from 'pinia';
 import { twitchService } from '@/services/twitchService';
 
 export const useTwitchStore = defineStore('twitch', {
-  state: () => ({ connected: false, profile: null, loading: false }),
+  state: () => ({ connected: false, channel: null, loading: false }),
   actions: {
-    async loadProfile() {
+    async refreshConnection() {
       this.loading = true;
       try {
         const data = await twitchService.getMe();
         this.connected = Boolean(data?.connected);
-        this.profile = data?.channel || null;
-      } finally { this.loading = false; }
+        this.channel = data?.channel || null;
+        return data;
+      } finally {
+        this.loading = false;
+      }
     },
-    async linkChannel() {
-      const data = await twitchService.getAuthUrl();
-      if (data?.auth_url) window.location.href = data.auth_url;
+    async loadProfile() {
+      return this.refreshConnection();
+    },
+    async getAuthUrl() {
+      return twitchService.getAuthUrl();
+    },
+    async unlinkChannel() {
+      const data = await twitchService.disconnect();
+      this.connected = false;
+      this.channel = null;
+      return data;
     }
   },
 });
