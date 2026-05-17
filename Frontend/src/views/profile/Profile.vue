@@ -168,7 +168,7 @@
                       </div>
                       <button
                         class="btn btn-sm mb-0"
-                        :class="platform.connected ? 'btn-outline-danger' : 'btn-outline-success'"
+                        :class="platform.key === 'twitch' ? twitchButtonClass : (platform.connected ? 'btn-outline-danger' : 'btn-outline-success')"
                         :disabled="platform.pending || platform.disabled"
                         @click="handleToggleConnection('platform', platform.key)"
                       >
@@ -289,6 +289,14 @@ const showTwitchDisconnectModal = ref(false);
 const twitchDisconnectLoading = ref(false);
 const twitchCallbackLoading = ref(false);
 
+const twitchButtonClass = computed(() => {
+  const darkMode = document?.body?.classList?.contains('dark-version');
+  if (twitchStore.connected) {
+    return darkMode ? 'btn-outline-light' : 'btn-outline-danger';
+  }
+  return darkMode ? 'btn-outline-info' : 'btn-outline-success';
+});
+
 const platformConnections = ref([
   { key: 'twitch', label: 'Twitch', description: 'Streaming y eventos en vivo.', connected: false, pending: false },
   { key: 'discord', label: 'Discord', description: 'Comunidad y notificaciones.', connected: false, pending: false, disabled: true },
@@ -367,13 +375,18 @@ const closeTwitchDisconnectModal = () => {
 
 const handleTwitchCallbackIfPresent = async () => {
   const code = typeof route.query.code === 'string' ? route.query.code : '';
-  if (!code) return;
+  const hasError = typeof route.query.error === 'string';
+  const hasErrorDescription = typeof route.query.error_description === 'string';
+
+  if (!code && !hasError && !hasErrorDescription) return;
 
   twitchCallbackLoading.value = true;
 
   try {
-    await twitchStore.completeCallback(code);
-    syncTwitchConnection();
+    if (code) {
+      await twitchStore.completeCallback(code);
+      syncTwitchConnection();
+    }
   } finally {
     twitchCallbackLoading.value = false;
     await router.replace({ path: '/dashboard-layout/profile', query: {} });
@@ -399,6 +412,12 @@ const refreshTwitchConnection = async () => {
 
 const openTwitchDisconnectModal = () => {
   showTwitchDisconnectModal.value = true;
+};
+
+const redirectToTwitchOAuth = async () => {
+  const { authUrl } = await twitchStore.getAuthUrl();
+  if (!authUrl) throw new Error('No se recibió URL de autorización de Twitch');
+  window.location.assign(authUrl);
 };
 
 const confirmTwitchDisconnect = async () => {
@@ -435,7 +454,8 @@ const handleToggleConnection = async (type, key) => {
       openTwitchDisconnectModal();
       return;
     }
-    window.location.assign('/twitch/auth-url');
+
+    await redirectToTwitchOAuth();
   } catch (error) {
     if (error?.response?.status === 401) {
       authStore.logout();

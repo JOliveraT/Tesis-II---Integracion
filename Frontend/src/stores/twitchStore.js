@@ -22,7 +22,9 @@ export const useTwitchStore = defineStore('twitch', {
       return this.refreshConnection();
     },
     async getAuthUrl() {
-      return twitchService.getAuthUrl();
+      const data = await twitchService.getAuthUrl();
+      const authUrl = data?.authUrl || data?.auth_url || data?.url || '';
+      return { ...data, authUrl };
     },
     applyCallbackResult(payload) {
       this.connected = Boolean(payload?.connected);
