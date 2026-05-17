@@ -292,8 +292,13 @@ const twitchDisconnectLoading = ref(false);
 const twitchActionError = ref('');
 const twitchActionNotice = ref('');
 
+const twitchIsProcessing = computed(() => twitchStore.actionLoading || twitchStore.callbackProcessing || twitchDisconnectLoading.value);
+
 const twitchButtonClass = computed(() => {
   const darkMode = document?.body?.classList?.contains('dark-version');
+  if (twitchIsProcessing.value) {
+    return darkMode ? 'btn-outline-secondary' : 'btn-outline-dark';
+  }
   if (twitchStore.connected) {
     return darkMode ? 'btn-outline-light' : 'btn-outline-danger';
   }
@@ -386,7 +391,7 @@ const handleTwitchCallbackIfPresent = async () => {
   if (oauthState === 'success') {
     twitchActionNotice.value = 'Cuenta de Twitch vinculada correctamente.';
   } else if (oauthState === 'cancelled') {
-    twitchActionError.value = 'La autorización de Twitch fue cancelada por el usuario.';
+    twitchActionNotice.value = 'Autorización de Twitch cancelada.';
   } else {
     twitchActionError.value = 'No se pudo completar la autorización de Twitch.';
   }
@@ -484,7 +489,7 @@ watch(
   (isLoading) => {
     const twitchItem = getConnectionItem('platform', 'twitch');
     if (!twitchItem) return;
-    twitchItem.pending = isLoading || showTwitchDisconnectModal.value || twitchStore.actionLoading;
+    twitchItem.pending = isLoading || showTwitchDisconnectModal.value || twitchStore.actionLoading || twitchDisconnectLoading.value;
   }
 );
 
@@ -493,7 +498,7 @@ watch(
   (isLoading) => {
   const twitchItem = getConnectionItem('platform', 'twitch');
   if (!twitchItem) return;
-    twitchItem.pending = isLoading || showTwitchDisconnectModal.value || twitchStore.callbackProcessing;
+    twitchItem.pending = isLoading || showTwitchDisconnectModal.value || twitchStore.callbackProcessing || twitchDisconnectLoading.value;
   }
 );
 
