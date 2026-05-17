@@ -296,13 +296,17 @@ const updateMovingTab = async () => {
   const wrapper = tabsWrapperRef.value;
   if (!activeButton || !wrapper) return;
 
-  const left = activeButton.offsetLeft;
-  const width = activeButton.offsetWidth;
-  const height = activeButton.offsetHeight;
+  const wrapperRect = wrapper.getBoundingClientRect();
+  const activeRect = activeButton.getBoundingClientRect();
+  const contentWidth = Math.min(activeButton.scrollWidth, activeRect.width);
+  const horizontalPadding = 16;
+  const indicatorWidth = Math.max(64, contentWidth + horizontalPadding);
+  const left = activeRect.left - wrapperRect.left + (activeRect.width - indicatorWidth) / 2;
+  const height = activeRect.height;
 
   movingTabStyle.value = {
     transform: `translate3d(${left}px, 0, 0)`,
-    width: `${width}px`,
+    width: `${indicatorWidth}px`,
     height: `${height}px`,
     opacity: 1
   };
@@ -372,12 +376,20 @@ watch(loading, (value) => {
   isolation: isolate;
   gap: 0.25rem;
   min-width: 340px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.profile-tabs::-webkit-scrollbar {
+  display: none;
 }
 
 .profile-tabs .nav-item {
   position: relative;
   z-index: 2;
-  min-width: 0;
+  min-width: max-content;
+  flex: 1 1 auto;
 }
 
 .profile-tab-link {
@@ -386,6 +398,8 @@ watch(loading, (value) => {
   justify-content: center;
   gap: 0.25rem;
   width: 100%;
+  min-width: 108px;
+  padding-inline: 0.75rem !important;
   white-space: nowrap;
   color: var(--bs-body-color);
   transition: color 0.2s ease;
@@ -413,7 +427,7 @@ watch(loading, (value) => {
 }
 
 :global(body.dark-version) .profile-tab-link:not(.active) {
-  color: rgba(255, 255, 255, 0.8);
+  color: #fff;
 }
 
 :global(body.dark-version) .profile-tab-link.active {
@@ -421,7 +435,7 @@ watch(loading, (value) => {
 }
 
 :global(body:not(.dark-version)) .profile-tab-link:not(.active) {
-  color: #344767;
+  color: #67748e;
 }
 
 .moving-tab {
