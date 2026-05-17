@@ -6,6 +6,7 @@ TWITCH_API_BASE_URL = "https://api.twitch.tv/helix"
 TWITCH_CLIENT_ID = settings.twitch_client_id
 TWITCH_CLIENT_SECRET = settings.twitch_client_secret
 TWITCH_REDIRECT_URI = settings.twitch_redirect_uri
+FRONTEND_BASE_URL = settings.frontend_base_url
 
 TWITCH_SCOPES = [
     "user:read:email",
