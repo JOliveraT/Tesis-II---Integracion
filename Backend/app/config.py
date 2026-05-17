@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     twitch_client_id: str | None = None
     twitch_client_secret: str | None = None
     twitch_redirect_uri: str | None = None
+    frontend_base_url: str = "http://localhost:3000"
 
     model_config = SettingsConfigDict(
         env_file=".env",

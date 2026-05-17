@@ -1,6 +1,6 @@
 from typing import Union
 
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urljoin
 
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
@@ -10,7 +10,7 @@ from app.schemas.twitch_schema import (
     TwitchConnectedChannelResponse,
     TwitchMeResponse,
 )
-from app.integrations.twitch.config import TWITCH_REDIRECT_URI
+from app.integrations.twitch.config import FRONTEND_BASE_URL
 from app.services.twitch_auth_service import disconnect_channel, get_auth_url, get_me, handle_twitch_callback
 
 router = APIRouter(prefix="/twitch", tags=["Twitch Auth"])
@@ -23,15 +23,10 @@ def twitch_auth_url():
 
 
 def _build_profile_redirect(status: str) -> str:
-    default_path = "/dashboard-layout/profile"
-    if not TWITCH_REDIRECT_URI:
-        return f"{default_path}?twitch_oauth={status}"
-
-    parsed = urlsplit(TWITCH_REDIRECT_URI)
-    if not parsed.scheme or not parsed.netloc:
-        return f"{default_path}?twitch_oauth={status}"
-
-    return f"{parsed.scheme}://{parsed.netloc}{default_path}?twitch_oauth={status}"
+    base_url = (FRONTEND_BASE_URL or "http://localhost:3000").rstrip("/")
+    profile_url = urljoin(f"{base_url}/", "dashboard-layout/profile")
+    query = urlencode({"twitch_oauth": status})
+    return f"{profile_url}?{query}"
 
 
 @router.get("/callback")
