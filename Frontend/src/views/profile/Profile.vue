@@ -76,32 +76,25 @@
 
 
         <Transition name="twitch-modal">
-          <div v-if="showTwitchAuthModal" class="twitch-modal-backdrop" @click.self="closeTwitchAuthModal">
-            <div class="card twitch-auth-modal" role="dialog" aria-modal="true" aria-label="Autorización de Twitch">
+          <div v-if="showTwitchDisconnectModal" class="twitch-modal-backdrop" @click.self="closeTwitchDisconnectModal">
+            <div class="card twitch-auth-modal" role="dialog" aria-modal="true" aria-label="Confirmación de desvinculación de Twitch">
               <div class="card-header pb-0 p-3 d-flex align-items-center justify-content-between">
                 <div class="d-flex align-items-center">
                   <span class="twitch-icon me-2" aria-hidden="true">◆</span>
                   <div>
-                    <h6 class="mb-0">Vincular cuenta de Twitch</h6>
+                    <h6 class="mb-0">Desvincular cuenta de Twitch</h6>
                     <p class="text-xs text-muted mb-0">{{ twitchSummaryText }}</p>
                   </div>
                 </div>
-                <button class="btn btn-link text-secondary p-0 mb-0" :disabled="twitchAuthLoading || twitchCallbackLoading" @click="closeTwitchAuthModal">✕</button>
+                <button class="btn btn-link text-secondary p-0 mb-0" :disabled="twitchDisconnectLoading" @click="closeTwitchDisconnectModal">✕</button>
               </div>
               <div class="card-body pt-3">
-                <p class="text-sm mb-2">Permisos solicitados:</p>
-                <ul class="list-group mb-3">
-                  <li v-for="scope in twitchRequiredScopes" :key="scope.key" class="list-group-item border-0 ps-0 py-1">
-                    <span class="badge bg-gradient-dark me-2">{{ scope.key }}</span>
-                    <span class="text-sm">{{ scope.description }}</span>
-                  </li>
-                </ul>
-                <p v-if="twitchCallbackMessage" class="text-sm mb-0" :class="twitchStore.connected ? 'text-success' : 'text-warning'">{{ twitchCallbackMessage }}</p>
+                <p class="text-sm mb-0">¿Deseas desvincular tu canal de Twitch?</p>
               </div>
               <div class="card-footer pt-0 d-flex justify-content-end gap-2">
-                <button class="btn btn-outline-secondary btn-sm mb-0" :disabled="twitchAuthLoading || twitchCallbackLoading" @click="closeTwitchAuthModal">Cancelar</button>
-                <button class="btn bg-gradient-success btn-sm mb-0" :disabled="twitchAuthLoading || twitchCallbackLoading || !twitchAuthUrl" @click="proceedTwitchAuthorization">
-                  {{ twitchAuthLoading ? 'Preparando...' : twitchCallbackLoading ? 'Procesando...' : 'Autorizar' }}
+                <button class="btn btn-outline-secondary btn-sm mb-0" :disabled="twitchDisconnectLoading" @click="closeTwitchDisconnectModal">Cancelar</button>
+                <button class="btn bg-gradient-danger btn-sm mb-0" :disabled="twitchDisconnectLoading" @click="confirmTwitchDisconnect">
+                  {{ twitchDisconnectLoading ? 'Procesando...' : 'Confirmar' }}
                 </button>
               </div>
             </div>
@@ -292,12 +285,9 @@ const editableProfile = reactive({
 });
 
 
-const showTwitchAuthModal = ref(false);
-const twitchAuthUrl = ref('');
-const twitchAuthLoading = ref(false);
+const showTwitchDisconnectModal = ref(false);
+const twitchDisconnectLoading = ref(false);
 const twitchCallbackLoading = ref(false);
-const twitchCallbackMessage = ref('');
-const twitchRequiredScopes = ref([]);
 
 const platformConnections = ref([
   { key: 'twitch', label: 'Twitch', description: 'Streaming y eventos en vivo.', connected: false, pending: false },
@@ -370,54 +360,9 @@ const twitchSummaryText = computed(() => {
   return 'Aún no hay una cuenta de Twitch vinculada';
 });
 
-const buildScopeDescriptions = (payload) => {
-  const fallbackScopes = ['chat:read', 'chat:edit', 'channel:manage:redemptions'];
-  const scopes = payload?.scopes || payload?.scope || fallbackScopes;
-  const normalized = Array.isArray(scopes)
-    ? scopes
-    : String(scopes)
-      .split(/[\s,]+/)
-      .filter(Boolean);
-
-  const dictionary = {
-    'chat:read': 'Leer mensajes del chat del canal.',
-    'chat:edit': 'Enviar mensajes y respuestas automatizadas en chat.',
-    'channel:manage:redemptions': 'Gestionar recompensas de puntos del canal.'
-  };
-
-  return normalized.map((scope) => ({
-    key: scope,
-    description: dictionary[scope] || 'Permiso requerido para operar funciones de integración.'
-  }));
-};
-
-const openTwitchAuthModal = async () => {
-  twitchAuthLoading.value = true;
-  twitchCallbackMessage.value = '';
-  showTwitchAuthModal.value = true;
-
-  try {
-    const payload = await twitchStore.getAuthUrl();
-    twitchAuthUrl.value = payload?.auth_url || '';
-    twitchRequiredScopes.value = buildScopeDescriptions(payload);
-  } catch (error) {
-    twitchRequiredScopes.value = [];
-    twitchCallbackMessage.value = 'No se pudo preparar la autorización de Twitch. Intenta nuevamente.';
-    throw error;
-  } finally {
-    twitchAuthLoading.value = false;
-  }
-};
-
-const closeTwitchAuthModal = () => {
-  if (twitchAuthLoading.value || twitchCallbackLoading.value) return;
-  showTwitchAuthModal.value = false;
-};
-
-const proceedTwitchAuthorization = () => {
-  if (!twitchAuthUrl.value) return;
-  twitchCallbackLoading.value = true;
-  window.location.assign(twitchAuthUrl.value);
+const closeTwitchDisconnectModal = () => {
+  if (twitchDisconnectLoading.value) return;
+  showTwitchDisconnectModal.value = false;
 };
 
 const handleTwitchCallbackIfPresent = async () => {
@@ -425,18 +370,13 @@ const handleTwitchCallbackIfPresent = async () => {
   if (!code) return;
 
   twitchCallbackLoading.value = true;
-  showTwitchAuthModal.value = true;
 
   try {
-    const data = await twitchStore.completeCallback(code);
-    twitchCallbackMessage.value = data?.message || 'Cuenta de Twitch conectada correctamente.';
+    await twitchStore.completeCallback(code);
     syncTwitchConnection();
   } finally {
     twitchCallbackLoading.value = false;
-    await router.replace({ path: route.path, query: {} });
-    setTimeout(() => {
-      showTwitchAuthModal.value = false;
-    }, 1100);
+    await router.replace({ path: '/dashboard-layout/profile', query: {} });
   }
 };
 
@@ -455,6 +395,22 @@ const syncTwitchConnection = () => {
 const refreshTwitchConnection = async () => {
   await twitchStore.refreshConnection();
   syncTwitchConnection();
+};
+
+const openTwitchDisconnectModal = () => {
+  showTwitchDisconnectModal.value = true;
+};
+
+const confirmTwitchDisconnect = async () => {
+  if (twitchDisconnectLoading.value) return;
+  twitchDisconnectLoading.value = true;
+  try {
+    await twitchStore.unlinkChannel();
+    await refreshTwitchConnection();
+    closeTwitchDisconnectModal();
+  } finally {
+    twitchDisconnectLoading.value = false;
+  }
 };
 
 const handleToggleConnection = async (type, key) => {
@@ -476,14 +432,10 @@ const handleToggleConnection = async (type, key) => {
 
   try {
     if (twitchStore.connected) {
-      const confirmed = window.confirm('¿Seguro que deseas desvincular tu cuenta de Twitch?');
-      if (!confirmed) return;
-      await twitchStore.unlinkChannel();
-      await refreshTwitchConnection();
+      openTwitchDisconnectModal();
       return;
     }
-
-    await openTwitchAuthModal();
+    window.location.assign('/twitch/auth-url');
   } catch (error) {
     if (error?.response?.status === 401) {
       authStore.logout();
@@ -491,9 +443,23 @@ const handleToggleConnection = async (type, key) => {
     }
     console.error('Error al gestionar conexión de Twitch', error);
   } finally {
-    item.pending = false;
+    if (!twitchStore.connected) {
+      item.pending = false;
+    }
   }
 };
+
+watch(showTwitchDisconnectModal, (visible) => {
+  const twitchItem = getConnectionItem('platform', 'twitch');
+  if (!twitchItem) return;
+  twitchItem.pending = visible || twitchCallbackLoading.value;
+});
+
+watch(twitchCallbackLoading, (isLoading) => {
+  const twitchItem = getConnectionItem('platform', 'twitch');
+  if (!twitchItem) return;
+  twitchItem.pending = isLoading || showTwitchDisconnectModal.value;
+});
 
 const handleUpdateDisplayName = () => {
   // TODO: Integrar endpoint backend para actualizar display_name

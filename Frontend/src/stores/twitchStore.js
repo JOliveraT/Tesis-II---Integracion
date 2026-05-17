@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { twitchService } from '@/services/twitchService';
 
 export const useTwitchStore = defineStore('twitch', {
-  state: () => ({ connected: false, channel: null, tokenSaved: false, loading: false }),
+  state: () => ({ connected: false, channel: null, tokenSaved: false, token_saved: false, loading: false }),
   actions: {
     async refreshConnection() {
       this.loading = true;
@@ -10,6 +10,9 @@ export const useTwitchStore = defineStore('twitch', {
         const data = await twitchService.getMe();
         this.connected = Boolean(data?.connected);
         this.channel = data?.channel || null;
+        const hasToken = Boolean(data?.token_saved ?? data?.tokenSaved);
+        this.tokenSaved = hasToken;
+        this.token_saved = hasToken;
         return data;
       } finally {
         this.loading = false;
@@ -24,7 +27,9 @@ export const useTwitchStore = defineStore('twitch', {
     applyCallbackResult(payload) {
       this.connected = Boolean(payload?.connected);
       this.channel = payload?.channel || null;
-      this.tokenSaved = Boolean(payload?.token_saved);
+      const hasToken = Boolean(payload?.token_saved ?? payload?.tokenSaved);
+      this.tokenSaved = hasToken;
+      this.token_saved = hasToken;
       return payload;
     },
     async completeCallback(code) {
@@ -37,6 +42,7 @@ export const useTwitchStore = defineStore('twitch', {
       this.connected = false;
       this.channel = null;
       this.tokenSaved = false;
+      this.token_saved = false;
       return data;
     }
   },
