@@ -378,38 +378,23 @@ const closeTwitchDisconnectModal = () => {
 
 const handleTwitchCallbackIfPresent = async () => {
   const oauthState = typeof route.query.twitch_oauth === 'string' ? route.query.twitch_oauth : '';
-  const code = typeof route.query.code === 'string' ? route.query.code : '';
-  const hasError = typeof route.query.error === 'string';
+  const oauthError = typeof route.query.error === 'string' ? route.query.error : '';
+  const oauthErrorDescription = typeof route.query.error_description === 'string' ? route.query.error_description : '';
 
-  if (!oauthState && !code && !hasError) return;
+  if (!oauthState && !oauthError && !oauthErrorDescription) return;
 
   twitchActionError.value = '';
   twitchActionNotice.value = '';
 
-  try {
-    if (oauthState === 'success') {
-      twitchActionNotice.value = 'Cuenta de Twitch vinculada correctamente.';
-      return;
-    }
-
-    if (oauthState === 'cancelled' || hasError) {
-      twitchActionError.value = 'La autorización de Twitch fue cancelada.';
-      return;
-    }
-
-    if (oauthState === 'error') {
-      twitchActionError.value = 'No se pudo completar la autorización de Twitch.';
-      return;
-    }
-
-    if (code) {
-      await twitchStore.completeCallback(code);
-      syncTwitchConnection();
-      twitchActionNotice.value = 'Cuenta de Twitch vinculada correctamente.';
-    }
-  } finally {
-    await router.replace({ path: '/dashboard-layout/profile', query: {} });
+  if (oauthState === 'success') {
+    twitchActionNotice.value = 'Cuenta de Twitch vinculada correctamente.';
+  } else if (oauthState === 'cancelled' || oauthError === 'access_denied') {
+    twitchActionError.value = 'La autorización de Twitch fue cancelada por el usuario.';
+  } else {
+    twitchActionError.value = oauthErrorDescription || 'No se pudo completar la autorización de Twitch.';
   }
+
+  await router.replace({ path: '/dashboard-layout/profile', query: {} });
 };
 
 
@@ -445,7 +430,7 @@ const confirmTwitchDisconnect = async () => {
   twitchActionError.value = '';
   try {
     await twitchStore.disconnect();
-    await refreshTwitchConnection();
+    syncTwitchConnection();
   } catch (error) {
     twitchActionError.value = 'No pudimos desvincular Twitch. Intenta de nuevo.';
   } finally {
@@ -460,7 +445,7 @@ const handleToggleConnection = async (type, key) => {
 
   if (!authStore.user || !authStore.token) {
     authStore.logout();
-    await router.push('/dashboard');
+    await router.push('/signin');
     return;
   }
 
@@ -482,14 +467,12 @@ const handleToggleConnection = async (type, key) => {
   } catch (error) {
     if (error?.response?.status === 401) {
       authStore.logout();
-      await router.push('/dashboard');
+      await router.push('/signin');
     }
     twitchActionError.value = 'No pudimos iniciar la autorización de Twitch. Intenta de nuevo.';
     console.error('Error al gestionar conexión de Twitch', error);
   } finally {
-    if (!twitchStore.connected) {
-      item.pending = false;
-    }
+    item.pending = false;
   }
 };
 
@@ -542,7 +525,7 @@ onMounted(async () => {
 
   if (!authStore.user || !authStore.token) {
     authStore.logout();
-    await router.push('/dashboard');
+    await router.push('/signin');
     return;
   }
 
@@ -552,7 +535,7 @@ onMounted(async () => {
   } catch (error) {
     if (error?.response?.status === 401) {
       authStore.logout();
-      await router.push('/dashboard');
+      await router.push('/signin');
       return;
     }
   }
