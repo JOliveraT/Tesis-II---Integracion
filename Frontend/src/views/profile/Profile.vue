@@ -377,38 +377,21 @@ const closeTwitchDisconnectModal = () => {
 };
 
 const handleTwitchCallbackIfPresent = async () => {
-  const oauthCode = typeof route.query.code === 'string' ? route.query.code : '';
   const oauthState = typeof route.query.twitch_oauth === 'string' ? route.query.twitch_oauth : '';
-  const oauthError = typeof route.query.error === 'string' ? route.query.error : '';
-  const oauthErrorDescription = typeof route.query.error_description === 'string' ? route.query.error_description : '';
-
-  if (!oauthCode && !oauthState && !oauthError && !oauthErrorDescription) return;
+  if (!oauthState) return;
 
   twitchActionError.value = '';
   twitchActionNotice.value = '';
 
-  if (oauthCode) {
-    try {
-      await twitchStore.completeCallback(oauthCode);
-      syncTwitchConnection();
-      twitchActionNotice.value = 'Cuenta de Twitch vinculada correctamente.';
-    } catch (error) {
-      if (error?.response?.status === 401) {
-        authStore.logout();
-        await router.push('/signin');
-        return;
-      }
-      twitchActionError.value = 'No se pudo completar la autorización de Twitch.';
-    }
-  } else if (oauthState === 'success') {
+  if (oauthState === 'success') {
     twitchActionNotice.value = 'Cuenta de Twitch vinculada correctamente.';
-  } else if (oauthState === 'cancelled' || oauthError === 'access_denied') {
+  } else if (oauthState === 'cancelled') {
     twitchActionError.value = 'La autorización de Twitch fue cancelada por el usuario.';
   } else {
-    twitchActionError.value = oauthErrorDescription || 'No se pudo completar la autorización de Twitch.';
+    twitchActionError.value = 'No se pudo completar la autorización de Twitch.';
   }
 
-  await router.replace({ path: '/dashboard-layout/profile', query: {} });
+  await router.replace({ path: route.path, query: {} });
 };
 
 

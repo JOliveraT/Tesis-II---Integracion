@@ -2,7 +2,7 @@ from typing import Union
 
 from urllib.parse import urlsplit
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from app.schemas.twitch_schema import (
@@ -39,8 +39,14 @@ async def twitch_callback(code: str | None = Query(default=None), error: str | N
     if error:
         return RedirectResponse(url=_build_profile_redirect("cancelled"), status_code=302)
 
-    payload = await handle_twitch_callback(code)
-    status = "success" if payload.get("connected") else "error"
+    try:
+        payload = await handle_twitch_callback(code)
+        status = "success" if payload.get("connected") else "error"
+    except HTTPException:
+        status = "error"
+    except Exception:
+        status = "error"
+
     return RedirectResponse(url=_build_profile_redirect(status), status_code=302)
 
 
