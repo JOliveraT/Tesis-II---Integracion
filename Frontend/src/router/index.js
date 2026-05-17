@@ -79,6 +79,9 @@ const router = createRouter({
           name: "Profile",
           component: ProfileView,
           alias: ["/profile"],
+          props: (route) => ({
+            twitchOAuth: route.query.twitch_oauth ?? '',
+          }),
         },
       ],
     },
