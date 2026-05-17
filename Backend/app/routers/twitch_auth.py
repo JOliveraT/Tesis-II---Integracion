@@ -8,7 +8,7 @@ from app.schemas.twitch_schema import (
     TwitchConnectedChannelResponse,
     TwitchMeResponse,
 )
-from app.services.twitch_auth_service import get_auth_url, get_me, handle_twitch_callback
+from app.services.twitch_auth_service import disconnect_channel, get_auth_url, get_me, handle_twitch_callback
 
 router = APIRouter(prefix="/twitch", tags=["Twitch Auth"])
 
@@ -31,4 +31,10 @@ async def twitch_me(access_token: str | None = Query(default=None)):
     payload = await get_me(access_token=access_token)
     if access_token:
         return TwitchMeResponse(**payload)
+    return TwitchConnectedChannelResponse(**payload)
+
+
+@router.delete("/disconnect", response_model=TwitchConnectedChannelResponse)
+async def twitch_disconnect():
+    payload = await disconnect_channel()
     return TwitchConnectedChannelResponse(**payload)

@@ -144,3 +144,30 @@ async def get_me(access_token: str | None = None) -> dict:
         "message": "No hay canal de Twitch conectado todavía.",
         "channel": None,
     }
+
+
+async def disconnect_channel() -> dict:
+    existing = (
+        supabase.table(TWITCH_CHANNELS_TABLE)
+        .select("id")
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+
+    if not existing.data:
+        return {
+            "connected": False,
+            "message": "No había un canal de Twitch vinculado.",
+            "channel": None,
+        }
+
+    channel_id = existing.data[0].get("id")
+    if channel_id:
+        supabase.table(TWITCH_CHANNELS_TABLE).delete().eq("id", channel_id).execute()
+
+    return {
+        "connected": False,
+        "message": "Canal de Twitch desvinculado correctamente.",
+        "channel": None,
+    }
