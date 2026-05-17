@@ -161,6 +161,7 @@
                     <p class="text-sm mb-0">Conecta tu cuenta para publicar y sincronizar actividad.</p>
                   </div>
                   <div class="card-body p-3">
+                    <p v-if="twitchActionNotice" class="text-xs text-success mb-2">{{ twitchActionNotice }}</p>
                     <p v-if="twitchActionError" class="text-xs text-danger mb-3">{{ twitchActionError }}</p>
                     <div v-for="platform in platformConnections" :key="platform.key" class="connection-item d-flex align-items-center justify-content-between mb-3">
                       <div>
@@ -289,6 +290,7 @@ const editableProfile = reactive({
 const showTwitchDisconnectModal = ref(false);
 const twitchDisconnectLoading = ref(false);
 const twitchActionError = ref('');
+const twitchActionNotice = ref('');
 
 const twitchButtonClass = computed(() => {
   const darkMode = document?.body?.classList?.contains('dark-version');
@@ -375,23 +377,35 @@ const closeTwitchDisconnectModal = () => {
 };
 
 const handleTwitchCallbackIfPresent = async () => {
+  const oauthState = typeof route.query.twitch_oauth === 'string' ? route.query.twitch_oauth : '';
   const code = typeof route.query.code === 'string' ? route.query.code : '';
   const hasError = typeof route.query.error === 'string';
-  const hasErrorDescription = typeof route.query.error_description === 'string';
 
-  if (!code && !hasError && !hasErrorDescription) return;
+  if (!oauthState && !code && !hasError) return;
 
   twitchActionError.value = '';
+  twitchActionNotice.value = '';
 
   try {
-    if (code) {
-      await twitchStore.completeCallback(code);
-      syncTwitchConnection();
+    if (oauthState === 'success') {
+      twitchActionNotice.value = 'Cuenta de Twitch vinculada correctamente.';
       return;
     }
 
-    if (hasError || hasErrorDescription) {
-      twitchActionError.value = 'La autorización de Twitch fue cancelada o no se pudo completar.';
+    if (oauthState === 'cancelled' || hasError) {
+      twitchActionError.value = 'La autorización de Twitch fue cancelada.';
+      return;
+    }
+
+    if (oauthState === 'error') {
+      twitchActionError.value = 'No se pudo completar la autorización de Twitch.';
+      return;
+    }
+
+    if (code) {
+      await twitchStore.completeCallback(code);
+      syncTwitchConnection();
+      twitchActionNotice.value = 'Cuenta de Twitch vinculada correctamente.';
     }
   } finally {
     await router.replace({ path: '/dashboard-layout/profile', query: {} });
@@ -470,6 +484,7 @@ const handleToggleConnection = async (type, key) => {
       authStore.logout();
       await router.push('/dashboard');
     }
+    twitchActionError.value = 'No pudimos iniciar la autorización de Twitch. Intenta de nuevo.';
     console.error('Error al gestionar conexión de Twitch', error);
   } finally {
     if (!twitchStore.connected) {
