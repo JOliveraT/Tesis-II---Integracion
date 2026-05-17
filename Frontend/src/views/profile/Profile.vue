@@ -42,7 +42,7 @@
                         <path class="color-background" d="M20.4472 21.5347L1.44721 12.0347C0.953235 11.7877 0.352562 11.988 0.105573 12.4819C0.0361451 12.6208 0 12.7739 0 12.9292V30.1875C0 30.6849 0.280875 31.1391 0.725813 31.3622L19.5528 40.7751C20.0468 41.0221 20.6475 40.8218 20.8944 40.3278C20.9639 40.189 21 40.0359 21 39.8806V22.4292C21 22.0504 20.786 21.7041 20.4472 21.5347Z" opacity=".7" />
                       </svg>
                     </span>
-                    <span>App</span>
+                    <span class="ms-1">App</span>
                   </button>
                 </li>
                 <li class="nav-item">
@@ -53,7 +53,7 @@
                         <path class="color-background" d="M30.9091 7.27273H1.81818C0.814545 7.27273 0 8.08727 0 9.09091V41.8182C0 42.8218 0.814545 43.6364 1.81818 43.6364H30.9091C31.9127 43.6364 32.7273 42.8218 32.7273 41.8182V9.09091C32.7273 8.08727 31.9127 7.27273 30.9091 7.27273ZM18.1818 34.5455H7.27273V30.9091H18.1818V34.5455ZM25.4545 27.2727H7.27273V23.6364H25.4545V27.2727ZM25.4545 20H7.27273V16.3636H25.4545V20Z" />
                       </svg>
                     </span>
-                    <span>Messages</span>
+                    <span class="ms-1">Messages</span>
                   </button>
                 </li>
                 <li class="nav-item">
@@ -65,7 +65,7 @@
                         <path class="color-background" d="M33.785 11.285L28.715 6.215L34.0617 0.868333C32.82 0.315 31.4483 0 30 0C24.4767 0 20 4.47667 20 10C20 10.99 20.1483 11.9433 20.4167 12.8467L2.435 27.3967C0.95 28.7083 0.0633333 30.595 0.00333333 32.5733C-0.0583333 34.5533 0.71 36.4917 2.11 37.89C3.47 39.2517 5.27833 40 7.20167 40C9.26667 40 11.2367 39.1133 12.6033 37.565L27.1533 19.5833C28.0567 19.8517 29.01 20 30 20C35.5233 20 40 15.5233 40 10C40 8.55167 39.685 7.18 39.1317 5.93667L33.785 11.285Z" />
                       </svg>
                     </span>
-                    <span>Settings</span>
+                    <span class="ms-1">Settings</span>
                   </button>
                 </li>
               </ul>
@@ -243,7 +243,7 @@ const loading = ref(true);
 const activeTab = ref('app');
 const tabsWrapperRef = ref(null);
 const tabButtonRefs = ref({});
-const movingTabStyle = ref({ transform: 'translate3d(0px, 0, 0)', width: '0px', opacity: 0 });
+const movingTabStyle = ref({ transform: 'translate3d(0px, 0, 0)', width: '0px', opacity: 0, height: '0px' });
 const currentUser = computed(() => authStore.user);
 
 const editableProfile = reactive({
@@ -298,10 +298,12 @@ const updateMovingTab = async () => {
 
   const left = activeButton.offsetLeft;
   const width = activeButton.offsetWidth;
+  const height = activeButton.offsetHeight;
 
   movingTabStyle.value = {
     transform: `translate3d(${left}px, 0, 0)`,
     width: `${width}px`,
+    height: `${height}px`,
     opacity: 1
   };
 };
@@ -368,11 +370,14 @@ watch(loading, (value) => {
   border-radius: 0.75rem;
   position: relative;
   isolation: isolate;
+  gap: 0.25rem;
+  min-width: 340px;
 }
 
 .profile-tabs .nav-item {
   position: relative;
   z-index: 2;
+  min-width: 0;
 }
 
 .profile-tab-link {
@@ -380,7 +385,9 @@ watch(loading, (value) => {
   align-items: center;
   justify-content: center;
   gap: 0.25rem;
-  color: var(--bs-body-color, #344767);
+  width: 100%;
+  white-space: nowrap;
+  color: var(--bs-body-color);
   transition: color 0.2s ease;
   position: relative;
   z-index: 2;
@@ -389,6 +396,7 @@ watch(loading, (value) => {
 .profile-tab-link .tab-icon {
   display: inline-flex;
   line-height: 0;
+  flex-shrink: 0;
 }
 
 .profile-tab-link .tab-icon svg {
@@ -401,15 +409,15 @@ watch(loading, (value) => {
 }
 
 .profile-tab-link.active {
-  color: #ffffff !important;
-}
-
-.profile-tab-link:not(.active) {
-  color: inherit;
+  color: var(--bs-nav-pills-link-active-color, #344767) !important;
 }
 
 :global(body.dark-version) .profile-tab-link:not(.active) {
-  color: rgba(255, 255, 255, 0.85);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+:global(body.dark-version) .profile-tab-link.active {
+  color: #344767 !important;
 }
 
 :global(body:not(.dark-version)) .profile-tab-link:not(.active) {
@@ -420,13 +428,12 @@ watch(loading, (value) => {
   position: absolute;
   top: 0;
   left: 0;
-  height: 100%;
   border-radius: 0.5rem;
-  background: linear-gradient(195deg, #66bb6a, #43a047);
-  transition: transform 0.3s ease, width 0.3s ease, opacity 0.2s ease;
+  background-color: var(--bs-nav-pills-link-active-bg, #fff);
+  transition: transform 0.3s ease, width 0.3s ease, height 0.3s ease, opacity 0.2s ease;
   z-index: 1;
-  box-shadow: 0 1px 5px 1px #ddd;
-  padding: 0.5rem 1rem;
+  box-shadow: 0 1px 5px 1px rgba(0, 0, 0, 0.08);
+  pointer-events: none;
 }
 
 .connection-item {
