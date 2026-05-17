@@ -1,4 +1,6 @@
 <template>
+  <div class="draw-page-wrapper">
+    <div class="draw-content" :class="{ 'is-locked': isDrawLocked }">
   <div class="container mt-4">
     <div class="row">
       <!-- Sección de Comando y Gestión (izquierda) -->
@@ -11,6 +13,7 @@
               class="form-control mb-3"
               v-model="command"
               placeholder="Escribe el comando"
+              :disabled="isDrawLocked"
             />
   
             <h5 class="card-title mt-4">Gestionar Ingresos:</h5>
@@ -18,14 +21,14 @@
               <button
                 class="btn btn-warning me-2"
                 @click="stopSort"
-                :disabled="isStopped"
+                :disabled="isStopped || isDrawLocked"
               >
                 Detener
               </button>
               <button
                 class="btn btn-success"
                 @click="resumeSort"
-                :disabled="!isStopped"
+                :disabled="!isStopped || isDrawLocked"
               >
                 Reanudar
               </button>
@@ -37,11 +40,13 @@
               class="form-control mb-3"
               v-model="manualInput"
               placeholder="Nombre del participante"
+              :disabled="isDrawLocked"
             />
             <div class="d-flex justify-content-center">
               <button
                 class="btn btn-primary mt-2"
                 @click="addParticipant(manualInput)"
+                :disabled="isDrawLocked"
               >
                 Agregar
               </button>
@@ -55,7 +60,7 @@
                 type="checkbox"
                 id="subsOnly"
                 v-model="isOnlySubs"
-                :disabled="isStopped"
+                :disabled="isStopped || isDrawLocked"
               />
               <label class="form-check-label" for="subsOnly">Solo Subs</label>
             </div>
@@ -65,7 +70,7 @@
                 type="checkbox"
                 id="followers"
                 v-model="isFollowers"
-                :disabled="isStopped"
+                :disabled="isStopped || isDrawLocked"
               />
               <label class="form-check-label" for="followers">Seguidores</label>
             </div>
@@ -75,7 +80,7 @@
                 type="checkbox"
                 id="general"
                 v-model="isGeneral"
-                :disabled="isStopped"
+                :disabled="isStopped || isDrawLocked"
               />
               <label class="form-check-label" for="general">General</label>
             </div>
@@ -85,7 +90,7 @@
                 type="checkbox"
                 id="collaborators"
                 v-model="isCollaborators"
-                :disabled="isStopped"
+                :disabled="isStopped || isDrawLocked"
               />
               <label class="form-check-label" for="collaborators">Colaboradores</label>
             </div>
@@ -97,7 +102,7 @@
               class="form-control mb-3"
               v-model="rounds"
               min="0"
-              :disabled="isStopped"
+              :disabled="isStopped || isDrawLocked"
             />
           </div>
         </div>
@@ -114,10 +119,11 @@
               v-model="prize"
               placeholder="¿Qué estamos sorteando?"
               ref="prizeInput"
+              :disabled="isDrawLocked"
             />
             <h6 class="d-flex justify-content-between">
               Participantes: {{ participants.length }}
-              <button class="btn btn-danger btn-sm" @click="clearParticipants" ref="clearButton">Limpiar</button>
+              <button class="btn btn-danger btn-sm" @click="clearParticipants" ref="clearButton" :disabled="isDrawLocked">Limpiar</button>
             </h6>
 
             <!-- Lista de participantes con scroll -->
@@ -151,7 +157,7 @@
 
             <!-- Botón de Sorteo -->
             <div class="text-center mt-3">
-              <button class="btn btn-primary" @click="startSort" :disabled="isStopped">¡A SORTEAR!</button>
+              <button class="btn btn-primary" @click="startSort" :disabled="isStopped || isDrawLocked">¡A SORTEAR!</button>
             </div>
           </div>
         </div>
@@ -178,6 +184,7 @@
               class="form-control mb-3"
               v-model="winner"
               placeholder="Nombre del ganador"
+              :disabled="isDrawLocked"
             />
 
             <!-- Configuración del Contador -->
@@ -188,38 +195,49 @@
               v-model="countdown"
               placeholder="Segundos"
               min="1"
+              :disabled="isDrawLocked"
             />
 
             <!-- Botón de iniciar contador -->
             <div class="d-flex justify-content-center mt-3">
-              <button class="btn btn-success" @click="startCountdown">Iniciar contador</button>
+              <button class="btn btn-success" @click="startCountdown" :disabled="isDrawLocked">Iniciar contador</button>
             </div>
           </div>
         </div>
       </div>
     </div>
   </div>
+  </div>
 
-    <div v-if="showTwitchModal" class="modal fade show" style="display:block;background:rgba(0,0,0,.6);" tabindex="-1">
-      <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-          <div class="modal-header"><h5 class="modal-title">Vincula Twitch primero</h5></div>
-          <div class="modal-body">Debes vincular tu canal de Twitch para iniciar sorteos.</div>
-          <div class="modal-footer">
-            <button class="btn btn-success" @click="twitchStore.linkChannel()">Vincular canal</button>
-            <button class="btn btn-secondary" @click="showTwitchModal=false">Cerrar</button>
+    <div v-if="isDrawLocked" class="draw-lock-overlay">
+      <div class="card draw-lock-card shadow-lg">
+        <div class="card-body p-4">
+          <h5 class="mb-2">Vincula una plataforma para usar Sorteos</h5>
+          <p class="text-sm mb-4">
+            Para registrar participantes desde el chat, comandos, recompensas del canal y confirmar ganadores en tiempo real, primero necesitas vincular una plataforma de streaming compatible. Actualmente puedes vincular Twitch desde tu perfil.
+          </p>
+
+          <div class="d-flex flex-wrap gap-2 justify-content-end">
+            <button class="btn btn-outline-secondary mb-0" @click="goToDashboard">
+              Volver al dashboard
+            </button>
+            <button class="btn bg-gradient-success mb-0" @click="goToConnections">
+              Ir a vincular
+            </button>
           </div>
         </div>
       </div>
     </div>
+  </div>
 
 </template>
   
   <script>
-  import AnimacionSorteo from '@/components/AnimacionSorteo.vue';
+import AnimacionSorteo from '@/components/AnimacionSorteo.vue';
 import { raffleService } from '@/services/raffleService';
 import { participantService } from '@/services/participantService';
 import { useTwitchStore } from '@/stores/twitchStore';
+import { useAuthStore } from '@/stores/authStore';
 
   export default {
     components: {
@@ -244,12 +262,29 @@ import { useTwitchStore } from '@/stores/twitchStore';
         mostrarAnimacion: false,
         raffleId: null,
         claimExpiresAt: null,
-        showTwitchModal: false,
+        twitchStore: null,
+        authStore: null,
       };
+    },
+    computed: {
+      hasConnectedPlatform() {
+        return Boolean(this.twitchStore?.connected);
+      },
+      isDrawLocked() {
+        return !this.hasConnectedPlatform;
+      },
     },
     async mounted() {
       this.twitchStore = useTwitchStore();
-      await this.twitchStore.loadProfile();
+      this.authStore = useAuthStore();
+      this.authStore.loadTokenFromStorage();
+      if (!this.authStore?.token || !this.authStore?.user) {
+        this.$router.push('/signin');
+        return;
+      }
+      if (typeof this.twitchStore.refreshConnection === 'function') {
+        await this.twitchStore.refreshConnection();
+      }
       // Calcular la altura dinámica cuando el componente se monte
       this.updateParticipantsHeight();
 
@@ -260,33 +295,50 @@ import { useTwitchStore } from '@/stores/twitchStore';
       });
     },
     methods: {
+      goToConnections() {
+        this.$router.push({ name: 'Profile', query: { tab: 'connections' } }).catch(() => {
+          this.$router.push('/dashboard-layout/profile?tab=connections');
+        });
+      },
+      goToDashboard() {
+        this.$router.push({ name: 'Dashboard' }).catch(() => {
+          this.$router.push('/dashboard-layout');
+        });
+      },
+      guardDrawActions() {
+        return !this.isDrawLocked;
+      },
       addParticipant(name) {
+        if (!this.guardDrawActions()) return;
         if (name.trim() !== "") {
           this.participants.push(name);
           this.manualInput = ""; // Limpiar después de agregar
         }
       },
       removeParticipant(index) {
+        if (!this.guardDrawActions()) return;
         this.participants.splice(index, 1);
       },
       stopSort() {
+        if (!this.guardDrawActions()) return;
         this.isStopped = true;
       },
       resumeSort() {
+        if (!this.guardDrawActions()) return;
         this.isStopped = false;
       },
       async startCountdown() {
+        if (!this.guardDrawActions()) return;
         if (!this.raffleId) return;
         await raffleService.startClaim(this.raffleId);
       },
       clearParticipants() {
+        if (!this.guardDrawActions()) return;
         this.participants = [];
       },
       async startSort() {
-        if (!this.twitchStore?.connected) {
-          this.showTwitchModal = true;
-          return;
-        }
+        if (!this.guardDrawActions()) return;
+        // TODO: reforzar también en backend que los endpoints de sorteo validen que el usuario tenga una plataforma compatible vinculada.
         if (this.participants.length > 0) {
           const raffleResp = await raffleService.create({ title: this.prize || 'Sorteo', prize_title: this.prize || 'Premio', prize_description: this.prize || 'Premio', command: this.command || '!sorteo', confirmation_mode: 'chat', claim_timeout_seconds: this.countdown || 30 });
           this.raffleId = raffleResp?.raffle?.id || raffleResp?.id;
@@ -385,6 +437,32 @@ import { useTwitchStore } from '@/stores/twitchStore';
   padding-right: 10px;
   padding-top: 5px;
   padding-bottom: 5px;
+  }
+  .draw-page-wrapper {
+    position: relative;
+  }
+
+  .draw-content.is-locked {
+    filter: blur(3px);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .draw-lock-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1.5rem;
+    z-index: 20;
+    background: rgba(15, 23, 42, 0.22);
+  }
+
+  .draw-lock-card {
+    max-width: 620px;
+    width: 100%;
+    border-radius: 0.9rem;
   }
   </style>
   
