@@ -71,6 +71,7 @@ def select_weighted_winner(raffle_id: str):
         .select("participant_id, final_score, is_eligible") \
         .eq("raffle_id", raffle_id) \
         .eq("is_eligible", True) \
+        .neq("status", "removed") \
         .execute()
 
     eligible_participants = participants_response.data
