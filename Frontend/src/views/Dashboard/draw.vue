@@ -348,6 +348,13 @@ import { useAuthStore } from '@/stores/authStore';
         return response?.raffle?.id
           || response?.data?.raffle?.id
           || response?.data?.id
+          || response?.data?.[0]?.id
+          || response?.data?.data?.raffle?.id
+          || response?.data?.data?.id
+          || response?.data?.data?.[0]?.id
+          || response?.payload?.raffle?.id
+          || response?.payload?.id
+          || response?.payload?.[0]?.id
           || response?.id
           || null;
       },
@@ -373,6 +380,8 @@ import { useAuthStore } from '@/stores/authStore';
           this.raffleId = raffleId;
           this.confirmationMode = mode;
           this.manualParticipantsSynced = false;
+          this.isRaffleRunning = false;
+          this.isClaimStarted = false;
           this.drawSuccess = "Sorteo creado correctamente.";
         } catch (error) {
           this.drawError = "No se pudo crear el sorteo. Intenta nuevamente.";
