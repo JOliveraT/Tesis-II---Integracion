@@ -2,6 +2,22 @@
   <div class="draw-page-wrapper">
     <div class="draw-content" :class="{ 'is-locked': isDrawLocked }">
   <div class="container mt-4">
+    <div v-if="drawError" class="alert alert-danger mb-3" role="alert">{{ drawError }}</div>
+    <div v-if="drawSuccess" class="alert alert-success mb-3" role="alert">{{ drawSuccess }}</div>
+    <div v-if="shouldShowRaffleTypeSelector" class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="mb-2">Selecciona el tipo de sorteo</h5>
+        <p class="text-sm mb-3">Debes crear un sorteo antes de continuar.</p>
+        <div class="d-flex gap-2 flex-wrap">
+          <button class="btn btn-primary" @click="createRaffleByMode('instant')" :disabled="isCreatingRaffle">
+            Ganador directo
+          </button>
+          <button class="btn btn-outline-primary" @click="createRaffleByMode('chat_confirmation')" :disabled="isCreatingRaffle">
+            Con confirmación
+          </button>
+        </div>
+      </div>
+    </div>
     <div class="row">
       <!-- Sección de Comando y Gestión (izquierda) -->
       <div class="col-lg-4 col-md-4 col-12 d-flex flex-column" style="min-height: 100%;">
@@ -13,7 +29,7 @@
               class="form-control mb-3"
               v-model="command"
               placeholder="Escribe el comando"
-              :disabled="isDrawLocked"
+              :disabled="isRaffleNotReady"
             />
   
             <h5 class="card-title mt-4">Gestionar Ingresos:</h5>
@@ -21,14 +37,14 @@
               <button
                 class="btn btn-warning me-2"
                 @click="stopSort"
-                :disabled="isStopped || isDrawLocked"
+                :disabled="isStopped || isRaffleNotReady"
               >
                 Detener
               </button>
               <button
                 class="btn btn-success"
                 @click="resumeSort"
-                :disabled="!isStopped || isDrawLocked"
+                :disabled="!isStopped || isRaffleNotReady"
               >
                 Reanudar
               </button>
@@ -40,13 +56,13 @@
               class="form-control mb-3"
               v-model="manualInput"
               placeholder="Nombre del participante"
-              :disabled="isDrawLocked"
+              :disabled="isRaffleNotReady"
             />
             <div class="d-flex justify-content-center">
               <button
                 class="btn btn-primary mt-2"
                 @click="addParticipant(manualInput)"
-                :disabled="isDrawLocked"
+                :disabled="isRaffleNotReady || isRaffleRunning"
               >
                 Agregar
               </button>
@@ -60,7 +76,7 @@
                 type="checkbox"
                 id="subsOnly"
                 v-model="isOnlySubs"
-                :disabled="isStopped || isDrawLocked"
+                :disabled="isStopped || isRaffleNotReady"
               />
               <label class="form-check-label" for="subsOnly">Solo Subs</label>
             </div>
@@ -70,7 +86,7 @@
                 type="checkbox"
                 id="followers"
                 v-model="isFollowers"
-                :disabled="isStopped || isDrawLocked"
+                :disabled="isStopped || isRaffleNotReady"
               />
               <label class="form-check-label" for="followers">Seguidores</label>
             </div>
@@ -80,7 +96,7 @@
                 type="checkbox"
                 id="general"
                 v-model="isGeneral"
-                :disabled="isStopped || isDrawLocked"
+                :disabled="isStopped || isRaffleNotReady"
               />
               <label class="form-check-label" for="general">General</label>
             </div>
@@ -90,7 +106,7 @@
                 type="checkbox"
                 id="collaborators"
                 v-model="isCollaborators"
-                :disabled="isStopped || isDrawLocked"
+                :disabled="isStopped || isRaffleNotReady"
               />
               <label class="form-check-label" for="collaborators">Colaboradores</label>
             </div>
@@ -102,7 +118,7 @@
               class="form-control mb-3"
               v-model="rounds"
               min="0"
-              :disabled="isStopped || isDrawLocked"
+              :disabled="isStopped || isRaffleNotReady"
             />
           </div>
         </div>
@@ -119,11 +135,11 @@
               v-model="prize"
               placeholder="¿Qué estamos sorteando?"
               ref="prizeInput"
-              :disabled="isDrawLocked"
+              :disabled="isRaffleNotReady"
             />
             <h6 class="d-flex justify-content-between">
               Participantes: {{ participants.length }}
-              <button class="btn btn-danger btn-sm" @click="clearParticipants" ref="clearButton" :disabled="isDrawLocked">Limpiar</button>
+              <button class="btn btn-danger btn-sm" @click="clearParticipants" ref="clearButton"  :disabled="isRaffleNotReady || isRaffleRunning">Limpiar</button>
             </h6>
 
             <!-- Lista de participantes con scroll -->
@@ -157,7 +173,7 @@
 
             <!-- Botón de Sorteo -->
             <div class="text-center mt-3">
-              <button class="btn btn-primary" @click="startSort" :disabled="isStopped || isDrawLocked">¡A SORTEAR!</button>
+              <button class="btn btn-primary" @click="startSort"  :disabled="isStopped || isRaffleNotReady || isRaffleRunning || isSyncingParticipants">¡A SORTEAR!</button>
             </div>
           </div>
         </div>
@@ -184,7 +200,7 @@
               class="form-control mb-3"
               v-model="winner"
               placeholder="Nombre del ganador"
-              :disabled="isDrawLocked"
+              :disabled="isRaffleNotReady"
             />
 
             <!-- Configuración del Contador -->
@@ -195,12 +211,12 @@
               v-model="countdown"
               placeholder="Segundos"
               min="1"
-              :disabled="isDrawLocked"
+               :disabled="isDrawLocked || !hasActiveRaffle || isClaimStarted"
             />
 
             <!-- Botón de iniciar contador -->
             <div class="d-flex justify-content-center mt-3">
-              <button class="btn btn-success" @click="startCountdown" :disabled="isDrawLocked">Iniciar contador</button>
+              <button class="btn btn-success" @click="startCountdown" :disabled="!canStartCountdown">Iniciar contador</button>
             </div>
           </div>
         </div>
@@ -261,6 +277,14 @@ import { useAuthStore } from '@/stores/authStore';
         participantsHeight: 0, // Variable para almacenar la altura dinámica de la lista de participantes
         mostrarAnimacion: false,
         raffleId: null,
+        confirmationMode: null,
+        isCreatingRaffle: false,
+        drawError: "",
+        drawSuccess: "",
+        manualParticipantsSynced: false,
+        isSyncingParticipants: false,
+        isRaffleRunning: false,
+        isClaimStarted: false,
         claimExpiresAt: null,
         twitchStore: null,
         authStore: null,
@@ -272,6 +296,18 @@ import { useAuthStore } from '@/stores/authStore';
       },
       isDrawLocked() {
         return !this.hasConnectedPlatform;
+      },
+      hasActiveRaffle() {
+        return Boolean(this.raffleId);
+      },
+      shouldShowRaffleTypeSelector() {
+        return !this.isDrawLocked && !this.hasActiveRaffle;
+      },
+      isRaffleNotReady() {
+        return this.isDrawLocked || !this.hasActiveRaffle || this.isCreatingRaffle;
+      },
+      canStartCountdown() {
+        return !this.isDrawLocked && this.hasActiveRaffle && this.confirmationMode === "chat_confirmation" && Boolean(this.winner) && !this.isClaimStarted;
       },
     },
     async mounted() {
@@ -308,16 +344,47 @@ import { useAuthStore } from '@/stores/authStore';
       guardDrawActions() {
         return !this.isDrawLocked;
       },
-      addParticipant(name) {
-        if (!this.guardDrawActions()) return;
-        if (name.trim() !== "") {
-          this.participants.push(name);
-          this.manualInput = ""; // Limpiar después de agregar
+      async createRaffleByMode(mode) {
+        if (!this.guardDrawActions() || this.isCreatingRaffle) return;
+        this.drawError = "";
+        this.drawSuccess = "";
+        this.isCreatingRaffle = true;
+        try {
+          const payload = {
+            title: this.prize || "Sorteo",
+            prize_title: this.prize || "Premio",
+            prize_description: this.prize || "Premio",
+            command: this.command || "!sorteo",
+            confirmation_mode: mode,
+            claim_timeout_seconds: Number(this.countdown) || 25,
+          };
+          const raffleResp = await raffleService.create(payload);
+          this.raffleId = raffleResp?.raffle?.id || raffleResp?.id || null;
+          this.confirmationMode = mode;
+          this.drawSuccess = "Sorteo creado correctamente.";
+        } catch (error) {
+          this.drawError = "No se pudo crear el sorteo. Intenta nuevamente.";
+        } finally {
+          this.isCreatingRaffle = false;
         }
       },
-      removeParticipant(index) {
+      addParticipant(name) {
         if (!this.guardDrawActions()) return;
+        if (!this.hasActiveRaffle) { this.drawError = "Primero selecciona el tipo de sorteo."; return; }
+        if (this.isRaffleRunning) return;
+        const cleaned = (name || "").trim();
+        if (!cleaned) return;
+        const exists = this.participants.some((p) => p.trim().toLowerCase() === cleaned.toLowerCase());
+        if (exists) { this.drawError = "Ese participante ya fue agregado."; return; }
+        this.drawError = "";
+        this.participants.push(cleaned);
+        this.manualInput = "";
+        this.manualParticipantsSynced = false;
+      },
+      removeParticipant(index) {
+        if (!this.guardDrawActions() || this.isRaffleRunning) return;
         this.participants.splice(index, 1);
+        this.manualParticipantsSynced = false;
       },
       stopSort() {
         if (!this.guardDrawActions()) return;
@@ -329,41 +396,60 @@ import { useAuthStore } from '@/stores/authStore';
       },
       async startCountdown() {
         if (!this.guardDrawActions()) return;
-        if (!this.raffleId) return;
-        await raffleService.startClaim(this.raffleId);
+        if (this.confirmationMode !== "chat_confirmation") { this.drawError = "El contador solo aplica a sorteos con confirmación."; return; }
+        if (!this.raffleId || !this.winner) { this.drawError = "Debes tener un ganador antes de iniciar contador."; return; }
+        this.drawError = "";
+        await raffleService.startClaim(this.raffleId, Number(this.countdown) || 25);
+        this.isClaimStarted = true;
       },
       clearParticipants() {
-        if (!this.guardDrawActions()) return;
+        if (!this.guardDrawActions() || this.isRaffleRunning) return;
         this.participants = [];
+        this.manualParticipantsSynced = false;
+        // TODO: cuando existan participantes sincronizados desde backend, usar soft-remove para los que ya estén persistidos.
       },
       async startSort() {
         if (!this.guardDrawActions()) return;
-        // TODO: reforzar también en backend que los endpoints de sorteo validen que el usuario tenga una plataforma compatible vinculada.
-        if (this.participants.length > 0) {
-          const raffleResp = await raffleService.create({ title: this.prize || 'Sorteo', prize_title: this.prize || 'Premio', prize_description: this.prize || 'Premio', command: this.command || '!sorteo', confirmation_mode: 'chat', claim_timeout_seconds: this.countdown || 30 });
-          this.raffleId = raffleResp?.raffle?.id || raffleResp?.id;
-          for (const name of this.participants) { await participantService.create({ raffle_id: this.raffleId, username: name.toLowerCase().replace(/\s+/g,'_'), display_name: name, entry_source: 'manual' }); }
+        if (!this.hasActiveRaffle) {
+          this.drawError = "Primero selecciona el tipo de sorteo.";
+          return;
+        }
+        if (!this.participants.length) {
+          this.drawError = "Agrega al menos un participante antes de sortear.";
+          return;
+        }
+        this.drawError = "";
+        this.drawSuccess = "";
+        this.isRaffleRunning = true;
+        try {
+          if (!this.manualParticipantsSynced) {
+            this.isSyncingParticipants = true;
+            await participantService.bulkCreate({
+              raffle_id: this.raffleId,
+              participants: this.participants.map((name) => ({
+                username: name.trim().toLowerCase().replace(/\s+/g, "_"),
+                display_name: name.trim(),
+                entry_source: "manual",
+              })),
+            });
+            this.manualParticipantsSynced = true;
+          }
           await raffleService.calculateScore(this.raffleId);
           const winnerResponse = await raffleService.selectWinner(this.raffleId);
           this.winner = winnerResponse?.winner_name || this.winner;
+          this.drawSuccess = "Ganador seleccionado.";
 
           const nombresURL = encodeURIComponent(this.participants.join(','));
           const premioURL = encodeURIComponent(this.prize || '');
-
           const url = `/dashboard-layout/draw/animation?names=${nombresURL}&prize=${premioURL}`;
-
-          // Obtener el tamaño de pantalla disponible
           const width = screen.availWidth;
           const height = screen.availHeight;
-          const left = 0;
-          const top = 0;
-
-          // Abrir ventana casi a pantalla completa
-          window.open(
-            url,
-            'AnimacionSorteo',
-            `width=${width},height=${height},top=${top},left=${left},resizable=yes,scrollbars=no`
-          );
+          window.open(url, 'AnimacionSorteo', `width=${width},height=${height},top=0,left=0,resizable=yes,scrollbars=no`);
+        } catch (error) {
+          this.drawError = "No se pudo completar el sorteo. Revisa la conexión e intenta nuevamente.";
+        } finally {
+          this.isSyncingParticipants = false;
+          this.isRaffleRunning = false;
         }
       },
 
