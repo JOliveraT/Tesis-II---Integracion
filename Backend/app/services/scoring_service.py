@@ -28,6 +28,7 @@ def calculate_participation_score(raffle_id: str):
     raffle_participants_response = supabase.table("raffle_participants") \
         .select("participant_id") \
         .eq("raffle_id", raffle_id) \
+        .neq("status", "removed") \
         .execute()
 
     results = []

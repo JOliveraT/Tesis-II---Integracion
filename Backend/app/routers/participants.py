@@ -1,8 +1,14 @@
 from fastapi import APIRouter
 
 from app.database import supabase
-from app.schemas.participant_schema import CreateParticipantRequest
-from app.services.participant_service import register_participant_in_raffle
+from app.schemas.participant_schema import (
+    BulkCreateParticipantsRequest,
+    CreateParticipantRequest,
+)
+from app.services.participant_service import (
+    bulk_register_participants,
+    register_participant_in_raffle,
+)
 
 router = APIRouter(prefix="/participants", tags=["Participants"])
 
@@ -29,3 +35,12 @@ def create_participant(data: CreateParticipantRequest):
         "participant": result["participant"],
         "entry": result["entry"],
     }
+
+
+@router.post("/bulk")
+def bulk_create_participants(data: BulkCreateParticipantsRequest):
+    return bulk_register_participants(
+        raffle_id=data.raffle_id,
+        participants=[participant.model_dump() for participant in data.participants],
+    )
+
