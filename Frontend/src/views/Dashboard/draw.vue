@@ -304,7 +304,7 @@ import { useAuthStore } from '@/stores/authStore';
         return !this.isDrawLocked && !this.hasActiveRaffle;
       },
       isRaffleNotReady() {
-        return this.isDrawLocked || !this.hasActiveRaffle || this.isCreatingRaffle;
+        return this.isDrawLocked || !this.hasActiveRaffle || this.isCreatingRaffle || this.isRaffleRunning;
       },
       canStartCountdown() {
         return !this.isDrawLocked && this.hasActiveRaffle && this.confirmationMode === "chat_confirmation" && Boolean(this.winner) && !this.isClaimStarted;
@@ -344,6 +344,13 @@ import { useAuthStore } from '@/stores/authStore';
       guardDrawActions() {
         return !this.isDrawLocked;
       },
+      extractRaffleId(response) {
+        return response?.raffle?.id
+          || response?.data?.raffle?.id
+          || response?.data?.id
+          || response?.id
+          || null;
+      },
       async createRaffleByMode(mode) {
         if (!this.guardDrawActions() || this.isCreatingRaffle) return;
         this.drawError = "";
@@ -359,8 +366,13 @@ import { useAuthStore } from '@/stores/authStore';
             claim_timeout_seconds: Number(this.countdown) || 25,
           };
           const raffleResp = await raffleService.create(payload);
-          this.raffleId = raffleResp?.raffle?.id || raffleResp?.id || null;
+          const raffleId = this.extractRaffleId(raffleResp);
+          if (!raffleId) {
+            throw new Error("No se recibió el ID del sorteo creado.");
+          }
+          this.raffleId = raffleId;
           this.confirmationMode = mode;
+          this.manualParticipantsSynced = false;
           this.drawSuccess = "Sorteo creado correctamente.";
         } catch (error) {
           this.drawError = "No se pudo crear el sorteo. Intenta nuevamente.";
