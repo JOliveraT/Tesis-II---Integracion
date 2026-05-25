@@ -159,6 +159,7 @@
                   </div>
                   <div class="p-3 card-body">
                     <template v-if="twitchStore.connected">
+                      <p v-if="overlayLoading" class="text-xs text-muted mb-2">Cargando URL de OBS...</p>
                       <div class="overlay-url-row">
                         <input
                           class="form-control overlay-url-input"
@@ -176,10 +177,9 @@
                         </button>
                       </div>
                       <div class="d-flex flex-wrap gap-2 mt-2">
-                        <button class="btn btn-outline-secondary btn-sm mb-0" type="button" disabled title="TODO: habilitar cuando exista token real por streamer">
+                        <button class="btn btn-outline-secondary btn-sm mb-0" type="button" @click="regenerateOverlayUrl">
                           Regenerar URL
                         </button>
-                        <span class="text-xs text-muted align-self-center">TODO: Integrar GET /overlay/me y POST /overlay/regenerate-token.</span>
                       </div>
                       <p class="text-sm text-muted mb-0 mt-3">Copia esta URL y agrégala en OBS como Fuente del navegador. Esta URL será fija para tus animaciones.</p>
                     </template>
@@ -308,6 +308,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } 
 import { useAuthStore } from '@/stores/authStore';
 import { useTwitchStore } from '@/stores/twitchStore';
 import { useRoute, useRouter } from 'vue-router';
+import { overlayService } from '@/services/overlayService';
 
 const authStore = useAuthStore();
 const twitchStore = useTwitchStore();
@@ -334,7 +335,9 @@ const showTwitchDisconnectModal = ref(false);
 const twitchDisconnectLoading = ref(false);
 const twitchActionError = ref('');
 const twitchActionNotice = ref('');
-const overlayToken = ref('dev-overlay');
+const overlayToken = ref('');
+const overlayUrl = ref('');
+const overlayLoading = ref(false);
 const showOverlayUrl = ref(false);
 const copiedOverlayUrl = ref(false);
 let copiedOverlayTimeoutId = null;
@@ -352,7 +355,7 @@ const twitchButtonClass = computed(() => {
   return darkMode ? 'btn-outline-info' : 'btn-outline-success';
 });
 
-const overlayUrl = computed(() => `${window.location.origin}/overlay/${overlayToken.value}`);
+
 
 const platformConnections = ref([
   { key: 'twitch', label: 'Twitch', description: 'Streaming y eventos en vivo.', connected: false, pending: false },
@@ -575,6 +578,50 @@ const toggleOverlayUrlVisibility = () => {
   showOverlayUrl.value = !showOverlayUrl.value;
 };
 
+
+const loadOverlayUrl = async () => {
+  if (!twitchStore.connected) {
+    overlayToken.value = '';
+    overlayUrl.value = '';
+    return;
+  }
+
+  overlayLoading.value = true;
+  try {
+    const data = await overlayService.getMyOverlay();
+    overlayToken.value = data?.overlay_token || '';
+    overlayUrl.value = data?.overlay_url || '';
+  } catch (error) {
+    overlayToken.value = '';
+    overlayUrl.value = '';
+    if (error?.response?.data?.detail) {
+      twitchActionError.value = error.response.data.detail;
+    }
+  } finally {
+    overlayLoading.value = false;
+  }
+};
+
+const regenerateOverlayUrl = async () => {
+  if (!twitchStore.connected) return;
+  const confirmed = window.confirm('¿Regenerar tu URL de overlay para OBS? La URL anterior dejará de mostrarse en tu perfil.');
+  if (!confirmed) return;
+
+  overlayLoading.value = true;
+  try {
+    const data = await overlayService.regenerateOverlayToken();
+    overlayToken.value = data?.overlay_token || '';
+    overlayUrl.value = data?.overlay_url || '';
+    showOverlayUrl.value = false;
+  } catch (error) {
+    if (error?.response?.data?.detail) {
+      twitchActionError.value = error.response.data.detail;
+    }
+  } finally {
+    overlayLoading.value = false;
+  }
+};
+
 const copyOverlayUrl = async () => {
   try {
     await navigator.clipboard.writeText(overlayUrl.value);
@@ -623,6 +670,7 @@ onMounted(async () => {
   try {
     await handleTwitchCallbackIfPresent();
     await refreshTwitchConnection();
+    await loadOverlayUrl();
   } catch (error) {
     if (error?.response?.status === 401) {
       authStore.logout();
@@ -641,6 +689,16 @@ onBeforeUnmount(() => {
   if (copiedOverlayTimeoutId) {
     clearTimeout(copiedOverlayTimeoutId);
   }
+});
+
+watch(() => twitchStore.connected, async (connected) => {
+  if (!connected) {
+    overlayToken.value = '';
+    overlayUrl.value = '';
+    showOverlayUrl.value = false;
+    return;
+  }
+  await loadOverlayUrl();
 });
 
 watch(activeTab, () => {
@@ -828,3 +886,4 @@ watch(loading, (value) => {
 }
 
 </style>
+

@@ -1,6 +1,12 @@
 import apiClient from './apiClient';
 
 export const overlayService = {
+  getMyOverlay() {
+    return apiClient.get('/overlay/me').then((r) => r.data);
+  },
+  regenerateOverlayToken() {
+    return apiClient.post('/overlay/regenerate-token').then((r) => r.data);
+  },
   getOverlayState(overlayToken) {
     return apiClient.get(`/overlay/state/${overlayToken}`).then((r) => r.data);
   },

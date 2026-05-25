@@ -1,6 +1,14 @@
+import secrets
+
+from fastapi import HTTPException
+
 from app.database import supabase
 
 DEFAULT_STATE = "idle"
+
+
+def generate_overlay_token() -> str:
+    return secrets.token_urlsafe(32)
 
 
 def _serialize(row: dict) -> dict:
@@ -9,6 +17,100 @@ def _serialize(row: dict) -> dict:
         "current_state": row.get("current_state", DEFAULT_STATE),
         "payload": row.get("payload") or {},
         "updated_at": row.get("updated_at"),
+    }
+
+
+def _build_overlay_url(frontend_base_url: str, overlay_token: str) -> str:
+    return f"{frontend_base_url.rstrip('/')}/overlay/{overlay_token}"
+
+
+def _ensure_twitch_connected(user_id: str) -> None:
+    channel = (
+        supabase.table("twitch_channels")
+        .select("id")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not channel.data:
+        raise HTTPException(status_code=400, detail="Debes vincular Twitch antes de generar tu URL de OBS.")
+
+
+def _upsert_idle_overlay_state(overlay_token: str, streamer_id: str | None = None) -> None:
+    payload = {
+        "overlay_token": overlay_token,
+        "current_state": DEFAULT_STATE,
+        "payload": {},
+    }
+    if streamer_id is not None:
+        payload["streamer_id"] = streamer_id
+    supabase.table("overlay_states").upsert(payload, on_conflict="overlay_token").execute()
+
+
+def get_or_create_user_overlay(user_id: str, frontend_base_url: str) -> dict:
+    _ensure_twitch_connected(user_id)
+
+    profile_resp = (
+        supabase.table("user_profiles")
+        .select("user_id,overlay_token")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not profile_resp.data:
+        raise HTTPException(status_code=404, detail="Perfil de usuario no encontrado")
+
+    profile = profile_resp.data[0]
+    overlay_token = profile.get("overlay_token")
+
+    if not overlay_token:
+        overlay_token = generate_overlay_token()
+        (
+            supabase.table("user_profiles")
+            .update({"overlay_token": overlay_token})
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+    _upsert_idle_overlay_state(overlay_token, user_id)
+
+    return {
+        "overlay_token": overlay_token,
+        "overlay_url": _build_overlay_url(frontend_base_url, overlay_token),
+    }
+
+
+def regenerate_user_overlay(user_id: str, frontend_base_url: str) -> dict:
+    _ensure_twitch_connected(user_id)
+
+    profile_resp = (
+        supabase.table("user_profiles")
+        .select("user_id,overlay_token")
+        .eq("user_id", user_id)
+        .limit(1)
+        .execute()
+    )
+    if not profile_resp.data:
+        raise HTTPException(status_code=404, detail="Perfil de usuario no encontrado")
+
+    old_token = profile_resp.data[0].get("overlay_token")
+    new_token = generate_overlay_token()
+
+    (
+        supabase.table("user_profiles")
+        .update({"overlay_token": new_token})
+        .eq("user_id", user_id)
+        .execute()
+    )
+
+    _upsert_idle_overlay_state(new_token, user_id)
+
+    if old_token:
+        hide_overlay(old_token)
+
+    return {
+        "overlay_token": new_token,
+        "overlay_url": _build_overlay_url(frontend_base_url, new_token),
     }
 
 
