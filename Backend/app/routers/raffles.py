@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, HTTPException
 from app.database import supabase
 from app.schemas.participant_schema import RemoveParticipantRequest
 from app.schemas.raffle_schema import CreateRaffleRequest
+from app.services.auth_service import get_current_user
 from app.services.participant_service import remove_participant_from_raffle
 from app.services.raffle_service import get_raffle_summary
 
@@ -23,8 +24,21 @@ def raffle_summary(raffle_id: str):
 
 
 @router.post("/")
-def create_raffle(data: CreateRaffleRequest):
+def create_raffle(data: CreateRaffleRequest, user=Depends(get_current_user)):
+    channel_response = (
+        supabase.table("twitch_channels")
+        .select("id")
+        .eq("user_id", user["id"])
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    channels = channel_response.data or []
+    if not channels:
+        raise HTTPException(status_code=400, detail="Debes vincular Twitch antes de crear un sorteo.")
+
     response = supabase.table("raffles").insert({
+        "channel_id": channels[0]["id"],
         "title": data.title,
         "prize_title": data.prize_title,
         "prize_description": data.prize_description,

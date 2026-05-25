@@ -75,6 +75,7 @@ def _ensure_twitch_connected(user_id: str) -> None:
     channel = (
         supabase.table("twitch_channels")
         .select("id,twitch_user_id,login,display_name,updated_at")
+        .eq("user_id", user_id)
         .order("updated_at", desc=True)
         .limit(1)
         .execute()

@@ -2,7 +2,7 @@ from typing import Union
 
 from urllib.parse import urlencode, urljoin
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import RedirectResponse
 
 from app.schemas.twitch_schema import (
@@ -11,14 +11,15 @@ from app.schemas.twitch_schema import (
     TwitchMeResponse,
 )
 from app.integrations.twitch.config import FRONTEND_BASE_URL
+from app.services.auth_service import get_current_user
 from app.services.twitch_auth_service import disconnect_channel, get_auth_url, get_me, handle_twitch_callback
 
 router = APIRouter(prefix="/twitch", tags=["Twitch Auth"])
 
 
 @router.get("/auth-url", response_model=TwitchAuthURLResponse)
-def twitch_auth_url():
-    auth_url = get_auth_url()
+def twitch_auth_url(user=Depends(get_current_user)):
+    auth_url = get_auth_url(user_id=user["id"])
     return TwitchAuthURLResponse(auth_url=auth_url)
 
 
@@ -30,12 +31,12 @@ def _build_profile_redirect(status: str) -> str:
 
 
 @router.get("/callback")
-async def twitch_callback(code: str | None = Query(default=None), error: str | None = Query(default=None)):
+async def twitch_callback(code: str | None = Query(default=None), state: str | None = Query(default=None), error: str | None = Query(default=None)):
     if error:
         return RedirectResponse(url=_build_profile_redirect("cancelled"), status_code=302)
 
     try:
-        payload = await handle_twitch_callback(code)
+        payload = await handle_twitch_callback(code, state)
         status = "success" if payload.get("connected") else "error"
     except HTTPException:
         status = "error"
@@ -46,14 +47,14 @@ async def twitch_callback(code: str | None = Query(default=None), error: str | N
 
 
 @router.get("/me", response_model=Union[TwitchMeResponse, TwitchConnectedChannelResponse])
-async def twitch_me(access_token: str | None = Query(default=None)):
-    payload = await get_me(access_token=access_token)
+async def twitch_me(access_token: str | None = Query(default=None), user=Depends(get_current_user)):
+    payload = await get_me(user_id=user["id"], access_token=access_token)
     if access_token:
         return TwitchMeResponse(**payload)
     return TwitchConnectedChannelResponse(**payload)
 
 
 @router.delete("/disconnect", response_model=TwitchConnectedChannelResponse)
-async def twitch_disconnect():
-    payload = await disconnect_channel()
+async def twitch_disconnect(user=Depends(get_current_user)):
+    payload = await disconnect_channel(user_id=user["id"])
     return TwitchConnectedChannelResponse(**payload)
