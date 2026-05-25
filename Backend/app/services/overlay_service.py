@@ -1,12 +1,18 @@
 import secrets
 import logging
+import time
 
+import httpx
 from fastapi import HTTPException
 
 from app.database import supabase
 
 DEFAULT_STATE = "idle"
 logger = logging.getLogger(__name__)
+
+
+class OverlayStorageUnavailable(Exception):
+    pass
 
 
 def generate_overlay_token() -> str:
@@ -24,6 +30,44 @@ def _serialize(row: dict) -> dict:
 
 def _build_overlay_url(frontend_base_url: str, overlay_token: str) -> str:
     return f"{frontend_base_url.rstrip('/')}/overlay/{overlay_token}"
+
+
+def _is_temporary_connection_error(error: Exception) -> bool:
+    transient_types = (
+        httpx.RemoteProtocolError,
+        httpx.ConnectError,
+        httpx.ReadTimeout,
+        httpx.TimeoutException,
+    )
+    if isinstance(error, transient_types):
+        return True
+
+    cause = getattr(error, "__cause__", None)
+    if isinstance(cause, transient_types):
+        return True
+
+    message = str(error).lower()
+    return "server disconnected" in message or "connection" in message or "timeout" in message
+
+
+def execute_with_retry(query, *, retries: int = 2, delay: float = 0.3, operation: str = "query"):
+    attempts = retries + 1
+    for attempt in range(1, attempts + 1):
+        try:
+            return query.execute()
+        except Exception as error:
+            temporary = _is_temporary_connection_error(error)
+            logger.exception("[overlay] Supabase connection error while %s", operation)
+
+            if not temporary:
+                raise
+
+            if attempt >= attempts:
+                logger.error("[overlay] Supabase unavailable after retries")
+                raise OverlayStorageUnavailable() from error
+
+            logger.warning("[overlay] Retrying Supabase query... (%s/%s)", attempt, attempts)
+            time.sleep(delay)
 
 
 def _ensure_twitch_connected(user_id: str) -> None:
@@ -126,22 +170,22 @@ def regenerate_user_overlay(user_id: str, frontend_base_url: str) -> dict:
 
 
 def get_overlay_state(overlay_token: str) -> dict:
-    response = (
+    response = execute_with_retry(
         supabase.table("overlay_states")
         .select("overlay_token,current_state,payload,updated_at")
         .eq("overlay_token", overlay_token)
-        .limit(1)
-        .execute()
+        .limit(1),
+        operation="reading state",
     )
 
     rows = response.data or []
     if rows:
         return _serialize(rows[0])
 
-    created = (
+    created = execute_with_retry(
         supabase.table("overlay_states")
-        .insert({"overlay_token": overlay_token, "current_state": DEFAULT_STATE, "payload": {}})
-        .execute()
+        .insert({"overlay_token": overlay_token, "current_state": DEFAULT_STATE, "payload": {}}),
+        operation="creating default state",
     )
     created_rows = created.data or [{"overlay_token": overlay_token, "current_state": DEFAULT_STATE, "payload": {}, "updated_at": None}]
     return _serialize(created_rows[0])
@@ -161,10 +205,10 @@ def update_overlay_state(
     if streamer_id is not None:
         data["streamer_id"] = streamer_id
 
-    response = (
+    response = execute_with_retry(
         supabase.table("overlay_states")
-        .upsert(data, on_conflict="overlay_token")
-        .execute()
+        .upsert(data, on_conflict="overlay_token"),
+        operation="updating state",
     )
     rows = response.data or [data]
     return _serialize(rows[0])

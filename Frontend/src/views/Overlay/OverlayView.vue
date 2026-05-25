@@ -43,6 +43,8 @@ import { overlayService } from '@/services/overlayService';
 
 const AUTO_HIDE_WINNER_MS = 10000;
 const AUTO_HIDE_STATUS_MS = 10000;
+const POLL_NORMAL_MS = 2000;
+const POLL_BACKOFF_MS = 5000;
 
 export default {
   name: 'OverlayView',
@@ -51,7 +53,9 @@ export default {
     return {
       currentState: 'idle',
       payload: {},
-      pollIntervalId: null,
+      pollTimeoutId: null,
+      pollDelayMs: POLL_NORMAL_MS,
+      consecutivePollErrors: 0,
       hideTimerId: null,
       claimCountdownIntervalId: null,
       claimCountdownRemaining: 0,
@@ -70,11 +74,11 @@ export default {
   },
   async mounted() {
     await this.fetchState();
-    this.pollIntervalId = window.setInterval(() => this.fetchState(), 2000);
+    this.scheduleNextPoll(this.pollDelayMs);
   },
   beforeUnmount() {
     this.clearTimers();
-    if (this.pollIntervalId) window.clearInterval(this.pollIntervalId);
+    this.clearPollTimer();
   },
   methods: {
     getStateKey(state) {
@@ -93,9 +97,23 @@ export default {
       if (this.hideTimerId) { window.clearTimeout(this.hideTimerId); this.hideTimerId = null; }
       if (this.claimCountdownIntervalId) { window.clearInterval(this.claimCountdownIntervalId); this.claimCountdownIntervalId = null; }
     },
+    clearPollTimer() {
+      if (this.pollTimeoutId) { window.clearTimeout(this.pollTimeoutId); this.pollTimeoutId = null; }
+    },
+    scheduleNextPoll(delayMs) {
+      this.clearPollTimer();
+      this.pollTimeoutId = window.setTimeout(async () => {
+        this.pollTimeoutId = null;
+        await this.fetchState();
+        this.scheduleNextPoll(this.pollDelayMs);
+      }, delayMs);
+    },
     async fetchState() {
       try {
         const state = await overlayService.getOverlayState(this.overlayToken);
+        this.consecutivePollErrors = 0;
+        this.pollDelayMs = POLL_NORMAL_MS;
+
         const nextState = state?.current_state || 'idle';
         const stateKey = this.getStateKey(state);
 
@@ -112,7 +130,12 @@ export default {
         this.lastStateKeyHandled = stateKey;
         this.handleStateTransition(state);
       } catch (error) {
-        console.warn('[OverlayView] No se pudo consultar estado de overlay:', error);
+        this.consecutivePollErrors += 1;
+        this.pollDelayMs = POLL_BACKOFF_MS;
+
+        if (this.consecutivePollErrors <= 3) {
+          console.warn('[OverlayView] No se pudo consultar estado de overlay:', error);
+        }
       }
     },
     handleStateTransition(state) {
