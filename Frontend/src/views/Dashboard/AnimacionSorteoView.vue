@@ -1,5 +1,10 @@
 <template>
-  <AnimacionSorteo :participantes="participantes" :premio="premio" @finalizado="notificarGanador" />
+  <AnimacionSorteo
+    :participantes="participantes"
+    :premio="premio"
+    :forcedWinner="winner"
+    @finalizado="finalizarAnimacion"
+  />
 </template>
 
 <script setup>
@@ -11,6 +16,7 @@ const route = useRoute();
 
 const participantes = ref([]);
 const premio = ref('');
+const winner = ref('');
 
 onMounted(() => {
   const query = route.query;
@@ -20,11 +26,19 @@ onMounted(() => {
   if (query.prize) {
     premio.value = query.prize;
   }
+  if (query.winner) {
+    winner.value = query.winner;
+  }
 });
 
-function notificarGanador(nombre) {
+function finalizarAnimacion(nombreAnimacion) {
+  const ganadorFinal = winner.value || nombreAnimacion;
+  if (!ganadorFinal) {
+    console.warn('[AnimacionSorteoView] La animación finalizó sin ganador válido.');
+    return;
+  }
   if (window.opener) {
-    window.opener.postMessage({ ganador: nombre }, '*');
+    window.opener.postMessage({ ganador: ganadorFinal }, '*');
     setTimeout(() => {
       window.close();
     }, 2500);

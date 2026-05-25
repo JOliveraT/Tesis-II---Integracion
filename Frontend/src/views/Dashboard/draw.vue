@@ -325,9 +325,17 @@ import { useAuthStore } from '@/stores/authStore';
       this.updateParticipantsHeight();
 
       window.addEventListener('message', (event) => {
-        if (event.data && event.data.ganador) {
-          this.winner = event.data.ganador;
+        const ganadorAnimacion = event?.data?.ganador;
+        if (!ganadorAnimacion) return;
+        if (!this.winner) {
+          this.winner = ganadorAnimacion;
+          return;
         }
+        if (ganadorAnimacion === this.winner) return;
+        console.warn(
+          '[draw.vue] Se ignoró un ganador distinto enviado por la animación.',
+          { ganadorBackend: this.winner, ganadorAnimacion }
+        );
       });
     },
     methods: {
@@ -462,7 +470,8 @@ import { useAuthStore } from '@/stores/authStore';
 
           const nombresURL = encodeURIComponent(this.participants.join(','));
           const premioURL = encodeURIComponent(this.prize || '');
-          const url = `/dashboard-layout/draw/animation?names=${nombresURL}&prize=${premioURL}`;
+          const ganadorURL = encodeURIComponent(this.winner || '');
+          const url = `/dashboard-layout/draw/animation?names=${nombresURL}&prize=${premioURL}&winner=${ganadorURL}`;
           const width = screen.availWidth;
           const height = screen.availHeight;
           window.open(url, 'AnimacionSorteo', `width=${width},height=${height},top=0,left=0,resizable=yes,scrollbars=no`);
