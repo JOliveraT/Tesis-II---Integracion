@@ -483,9 +483,11 @@ import { overlayService } from '@/services/overlayService';
             current_state: 'raffle_animation',
             payload: {
               raffle_id: this.raffleId,
-              participants: this.participants,
+              participants: Array.isArray(this.participants) ? this.participants : [],
               winner: this.winner,
               prize: this.prize || '',
+              confirmation_mode: this.confirmationMode || 'instant',
+              claim_timeout_seconds: Number(this.countdown) || 30,
             },
           }).catch((overlayError) => {
             console.warn('[draw.vue] No se pudo actualizar overlay fijo:', overlayError);
