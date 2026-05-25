@@ -151,6 +151,45 @@
                   </div>
                 </div>
               </div>
+
+              <div class="col-12 mt-4">
+                <div class="card card-plain h-100">
+                  <div class="p-3 pb-0 card-header">
+                    <h6 class="mb-0">Overlay para OBS</h6>
+                  </div>
+                  <div class="p-3 card-body">
+                    <template v-if="twitchStore.connected">
+                      <div class="overlay-url-row">
+                        <input
+                          class="form-control overlay-url-input"
+                          :class="{ 'overlay-url-hidden': !showOverlayUrl }"
+                          :type="showOverlayUrl ? 'text' : 'password'"
+                          :value="overlayUrl"
+                          readonly
+                          aria-label="URL de overlay para OBS"
+                        />
+                        <button class="btn btn-outline-dark btn-sm mb-0" type="button" @click="toggleOverlayUrlVisibility">
+                          {{ showOverlayUrl ? '🙈' : '👁️' }}
+                        </button>
+                        <button class="btn btn-outline-success btn-sm mb-0" type="button" @click="copyOverlayUrl">
+                          {{ copiedOverlayUrl ? 'Copiado' : 'Copiar' }}
+                        </button>
+                      </div>
+                      <div class="d-flex flex-wrap gap-2 mt-2">
+                        <button class="btn btn-outline-secondary btn-sm mb-0" type="button" disabled title="TODO: habilitar cuando exista token real por streamer">
+                          Regenerar URL
+                        </button>
+                        <span class="text-xs text-muted align-self-center">TODO: Integrar GET /overlay/me y POST /overlay/regenerate-token.</span>
+                      </div>
+                      <p class="text-sm text-muted mb-0 mt-3">Copia esta URL y agrégala en OBS como Fuente del navegador. Esta URL será fija para tus animaciones.</p>
+                    </template>
+                    <template v-else>
+                      <p class="text-sm text-muted mb-2">Vincula primero una plataforma para generar tu URL fija de OBS.</p>
+                      <button class="btn btn-outline-success btn-sm mb-0" type="button" @click="setActiveTab('connections')">Ir a Vincular</button>
+                    </template>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div v-else-if="activeTab === 'connections'" class="row g-4">
@@ -295,6 +334,10 @@ const showTwitchDisconnectModal = ref(false);
 const twitchDisconnectLoading = ref(false);
 const twitchActionError = ref('');
 const twitchActionNotice = ref('');
+const overlayToken = ref('dev-overlay');
+const showOverlayUrl = ref(false);
+const copiedOverlayUrl = ref(false);
+let copiedOverlayTimeoutId = null;
 
 const twitchIsProcessing = computed(() => twitchStore.actionLoading || twitchStore.callbackProcessing || twitchDisconnectLoading.value);
 
@@ -308,6 +351,8 @@ const twitchButtonClass = computed(() => {
   }
   return darkMode ? 'btn-outline-info' : 'btn-outline-success';
 });
+
+const overlayUrl = computed(() => `${window.location.origin}/overlay/${overlayToken.value}`);
 
 const platformConnections = ref([
   { key: 'twitch', label: 'Twitch', description: 'Streaming y eventos en vivo.', connected: false, pending: false },
@@ -526,6 +571,26 @@ const handlePasswordChange = () => {
   console.log('Cambiar contraseña', editableProfile.password);
 };
 
+const toggleOverlayUrlVisibility = () => {
+  showOverlayUrl.value = !showOverlayUrl.value;
+};
+
+const copyOverlayUrl = async () => {
+  try {
+    await navigator.clipboard.writeText(overlayUrl.value);
+    copiedOverlayUrl.value = true;
+    if (copiedOverlayTimeoutId) {
+      clearTimeout(copiedOverlayTimeoutId);
+    }
+    copiedOverlayTimeoutId = window.setTimeout(() => {
+      copiedOverlayUrl.value = false;
+    }, 1800);
+  } catch (error) {
+    copiedOverlayUrl.value = false;
+    console.error('No se pudo copiar la URL de overlay', error);
+  }
+};
+
 watch(
   () => currentUser.value,
   (user) => {
@@ -573,6 +638,9 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', updateMovingTab);
+  if (copiedOverlayTimeoutId) {
+    clearTimeout(copiedOverlayTimeoutId);
+  }
 });
 
 watch(activeTab, () => {
@@ -741,6 +809,22 @@ watch(loading, (value) => {
 .twitch-modal-leave-to .twitch-auth-modal {
   transform: translateY(12px) scale(0.98);
   opacity: 0;
+}
+
+.overlay-url-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.overlay-url-input {
+  font-size: 0.8125rem;
+}
+
+.overlay-url-hidden {
+  filter: blur(4px);
+  transition: filter 0.2s ease;
 }
 
 </style>
