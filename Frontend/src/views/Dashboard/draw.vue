@@ -462,6 +462,18 @@ import { overlayService } from '@/services/overlayService';
         this.manualParticipantsSynced = false;
         // TODO: cuando existan participantes sincronizados desde backend, usar soft-remove para los que ya estén persistidos.
       },
+      async getOverlayTokenForStreamer() {
+        if (this.overlayToken) return this.overlayToken;
+        try {
+          const data = await overlayService.getMyOverlay();
+          this.overlayToken = data?.overlay_token || '';
+          return this.overlayToken;
+        } catch (error) {
+          console.warn('[draw.vue] No se pudo obtener overlay token real:', error);
+          return '';
+        }
+      },
+
       async startSort() {
         if (!this.guardDrawActions()) return;
         if (!this.hasActiveRaffle) {
@@ -510,9 +522,10 @@ import { overlayService } from '@/services/overlayService';
           const height = screen.availHeight;
           window.open(url, 'AnimacionSorteo', `width=${width},height=${height},top=0,left=0,resizable=yes,scrollbars=no`);
 
-          // TODO: reemplazar por overlay token real del streamer desde perfil/conexiones.
-          overlayService.updateOverlayState({
-            overlay_token: 'dev-overlay',
+          const overlayToken = await this.getOverlayTokenForStreamer();
+          if (overlayToken) {
+            overlayService.updateOverlayState({
+              overlay_token: overlayToken,
             current_state: 'raffle_animation',
             payload: {
               raffle_id: this.raffleId,
@@ -522,9 +535,12 @@ import { overlayService } from '@/services/overlayService';
               confirmation_mode: this.confirmationMode || 'instant',
               claim_timeout_seconds: Number(this.countdown) || 30,
             },
-          }).catch((overlayError) => {
-            console.warn('[draw.vue] No se pudo actualizar overlay fijo:', overlayError);
-          });
+            }).catch((overlayError) => {
+              console.warn('[draw.vue] No se pudo actualizar overlay fijo:', overlayError);
+            });
+          } else {
+            console.warn('[draw.vue] No hay overlay_token disponible; el sorteo continuará sin overlay fijo.');
+          }
         } catch (error) {
           this.drawError = "No se pudo completar el sorteo. Revisa la conexión e intenta nuevamente.";
         } finally {

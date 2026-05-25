@@ -21,3 +21,13 @@ class OverlayStateUpdateRequest(BaseModel):
 
 class OverlayHideRequest(BaseModel):
     overlay_token: str
+
+
+class OverlayMeResponse(BaseModel):
+    overlay_token: str
+    overlay_url: str
+
+
+class OverlayRegenerateResponse(BaseModel):
+    overlay_token: str
+    overlay_url: str
