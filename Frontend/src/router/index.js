@@ -201,6 +201,12 @@ const router = createRouter({
       component: ElTypography,
     },
     {
+      path: '/overlay/:overlayToken',
+      name: 'Overlay',
+      component: () => import('@/views/Overlay/OverlayView.vue'),
+      meta: { public: true },
+    },
+    {
     path: "/dashboard-layout/draw/animation",
       name: "DrawAnimation",
       component: AnimacionSorteoView,
@@ -213,6 +219,11 @@ const router = createRouter({
 router.beforeEach(async (to, from, next) => {
   const authStore = useAuthStore();
   const token = authStore.loadTokenFromStorage();
+
+  if (to.meta?.public) {
+    next();
+    return;
+  }
 
   const privateRouteNames = [
     'testdashboard',
