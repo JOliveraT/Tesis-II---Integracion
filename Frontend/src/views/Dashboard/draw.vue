@@ -367,6 +367,30 @@ import { overlayService } from '@/services/overlayService';
           || response?.id
           || null;
       },
+      extractWinnerName(response) {
+        const winnerName = response?.winner?.username
+          || response?.winner?.display_name
+          || response?.winner_name
+          || response?.winner_username
+          || response?.username
+          || response?.display_name
+          || response?.data?.winner?.username
+          || response?.data?.winner?.display_name
+          || response?.data?.winner_name
+          || response?.data?.winner_username
+          || response?.data?.username
+          || response?.data?.display_name
+          || response?.data?.[0]?.winner_username
+          || response?.data?.[0]?.winner_name
+          || response?.data?.[0]?.username
+          || response?.data?.[0]?.display_name
+          || response?.data?.[0]?.participant?.username
+          || response?.data?.[0]?.participant?.display_name
+          || response?.participant?.username
+          || response?.participant?.display_name
+          || '';
+        return typeof winnerName === 'string' ? winnerName.trim() : '';
+      },
       async createRaffleByMode(mode) {
         if (!this.guardDrawActions() || this.isCreatingRaffle) return;
         this.drawError = "";
@@ -466,12 +490,21 @@ import { overlayService } from '@/services/overlayService';
           }
           await raffleService.calculateScore(this.raffleId);
           const winnerResponse = await raffleService.selectWinner(this.raffleId);
-          this.winner = winnerResponse?.winner_name || this.winner;
+          console.log("winner/select response:", winnerResponse);
+          const extractedWinnerName = this.extractWinnerName(winnerResponse);
+          if (!extractedWinnerName) {
+            console.warn('[draw.vue] No se pudo extraer ganador desde winner/select:', winnerResponse);
+            this.drawError = "No se pudo identificar el ganador devuelto por el backend.";
+            return;
+          }
+          this.winner = extractedWinnerName;
           this.drawSuccess = "Ganador seleccionado.";
 
+          const prizeTitle = typeof this.prizeTitle === 'string' ? this.prizeTitle : '';
+          const prizeName = (this.prize || prizeTitle || '').trim() || "Sin premio";
           const nombresURL = encodeURIComponent(this.participants.join(','));
-          const premioURL = encodeURIComponent(this.prize || '');
-          const ganadorURL = encodeURIComponent(this.winner || '');
+          const premioURL = encodeURIComponent(prizeName);
+          const ganadorURL = encodeURIComponent(extractedWinnerName);
           const url = `/dashboard-layout/draw/animation?names=${nombresURL}&prize=${premioURL}&winner=${ganadorURL}`;
           const width = screen.availWidth;
           const height = screen.availHeight;
@@ -484,8 +517,8 @@ import { overlayService } from '@/services/overlayService';
             payload: {
               raffle_id: this.raffleId,
               participants: Array.isArray(this.participants) ? this.participants : [],
-              winner: this.winner,
-              prize: this.prize || '',
+              winner: extractedWinnerName,
+              prize: prizeName,
               confirmation_mode: this.confirmationMode || 'instant',
               claim_timeout_seconds: Number(this.countdown) || 30,
             },
