@@ -1,4 +1,5 @@
 from typing import Union
+import logging
 
 from urllib.parse import urlencode, urljoin
 
@@ -15,6 +16,7 @@ from app.services.auth_service import get_current_user
 from app.services.twitch_auth_service import disconnect_channel, get_auth_url, get_me, handle_twitch_callback
 
 router = APIRouter(prefix="/twitch", tags=["Twitch Auth"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/auth-url", response_model=TwitchAuthURLResponse)
@@ -38,9 +40,11 @@ async def twitch_callback(code: str | None = Query(default=None), state: str | N
     try:
         payload = await handle_twitch_callback(code, state)
         status = "success" if payload.get("connected") else "error"
-    except HTTPException:
+    except HTTPException as exc:
+        logger.error("/twitch/callback controlled error detail=%s", exc.detail)
         status = "error"
     except Exception:
+        logger.exception("/twitch/callback unexpected error")
         status = "error"
 
     return RedirectResponse(url=_build_profile_redirect(status), status_code=302)
