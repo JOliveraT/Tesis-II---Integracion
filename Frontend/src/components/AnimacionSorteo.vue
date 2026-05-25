@@ -67,13 +67,14 @@ const nombresAEliminar = ref([]);
 const huracanActive = ref(false);
 const huracanDirection = ref('derecha');
 const winnerIndex = ref(null);
+const forcedWinnerIndex = ref(null);
 
 const movimientosErraticos = [
   { x: 200, duration: 0.8 },
   { x: -150, duration: 0.8 },
   { x: 300, duration: 1 }
 ];
-const porcentajesEliminacion = [0.25, 0.3, 0.4, 0.5];
+const porcentajesEliminacion = [0.3, 0.4, 0.5];
 
 // 👇 computed para evitar el error de "index"
 const nombresConPosicion = computed(() => {
@@ -83,11 +84,26 @@ const nombresConPosicion = computed(() => {
 });
 
 function seleccionarNombresAEliminar() {
+  const forzarGanador = forcedWinnerIndex.value !== null;
+  const indicesElegibles = forzarGanador
+    ? safeIndices.value.filter((idx) => idx !== forcedWinnerIndex.value)
+    : [...safeIndices.value];
+  if (!indicesElegibles.length) {
+    nombresAEliminar.value = [];
+    return;
+  }
+
   const porcentaje = porcentajesEliminacion[Math.floor(Math.random() * porcentajesEliminacion.length)];
   let totalEliminar = Math.max(1, Math.floor(safeIndices.value.length * porcentaje));
-  if (safeIndices.value.length - totalEliminar < 1) totalEliminar = safeIndices.value.length - 1;
+  const minSobrevivientes = forzarGanador ? 1 : 1;
+  const maxEliminablesPorSobrevivencia = Math.max(0, safeIndices.value.length - minSobrevivientes);
+  totalEliminar = Math.min(totalEliminar, maxEliminablesPorSobrevivencia, indicesElegibles.length);
+  if (totalEliminar <= 0) {
+    nombresAEliminar.value = [];
+    return;
+  }
 
-  const indices = [...safeIndices.value];
+  const indices = [...indicesElegibles];
   nombresAEliminar.value = [];
   for (let i = 0; i < totalEliminar; i++) {
     const idx = indices.splice(Math.floor(Math.random() * indices.length), 1)[0];
@@ -173,7 +189,7 @@ function checkHuracanEliminacion() {
         console.warn('No se pudo reproducir la música del ganador automáticamente.');
     });
 
-    winnerIndex.value = props.forcedWinner ? names.value.indexOf(props.forcedWinner) : safeIndices.value[0];
+    winnerIndex.value = forcedWinnerIndex.value !== null ? forcedWinnerIndex.value : safeIndices.value[0];
       // ✅ Marcar que ya se eligió ganador para evitar reinicios
     yaGanadorSeleccionado.value = true;
     despedirHuracanYMostrarGanador(winnerIndex.value);
@@ -183,7 +199,8 @@ function checkHuracanEliminacion() {
 function startHuracanRecorrido() {
   if (yaGanadorSeleccionado.value) return; // Detener cualquier ejecución futura
   if (safeIndices.value.length === 1) {
-    winnerIndex.value = props.forcedWinner ? names.value.indexOf(props.forcedWinner) : safeIndices.value[0];
+    winnerIndex.value = forcedWinnerIndex.value !== null ? forcedWinnerIndex.value : safeIndices.value[0];
+    yaGanadorSeleccionado.value = true;
     despedirHuracanYMostrarGanador(winnerIndex.value);
     return;
   }
@@ -227,6 +244,17 @@ function startHuracanRecorrido() {
 }
 
 function despedirHuracanYMostrarGanador(index) {
+  if (index === null || index < 0 || index >= names.value.length) {
+    console.warn('[AnimacionSorteo] Índice de ganador inválido. Se usará fallback seguro.');
+    const fallback = safeIndices.value[0];
+    if (fallback === undefined) {
+      emit('finalizado', props.forcedWinner || '');
+      return;
+    }
+    winnerIndex.value = fallback;
+    index = fallback;
+  }
+
   gsap.to('.huracan', {
     opacity: 0,
     duration: 1,
@@ -236,7 +264,10 @@ function despedirHuracanYMostrarGanador(index) {
   });
 
   setTimeout(() => {
-    emit('finalizado', names.value[index]);
+    const ganador = forcedWinnerIndex.value !== null
+      ? props.forcedWinner
+      : names.value[index];
+    emit('finalizado', ganador || '');
   }, 4000);
 }
 
@@ -283,6 +314,17 @@ function createRaindrops(count) {
 watch(() => props.participantes, async (val) => {
   if (val.length && !names.value.length) {
     names.value = [...val];
+    if (props.forcedWinner) {
+      const index = names.value.findIndex((name) => name === props.forcedWinner);
+      if (index === -1) {
+        console.warn('[AnimacionSorteo] forcedWinner no se encontró en la lista de participantes.', props.forcedWinner);
+        forcedWinnerIndex.value = null;
+      } else {
+        forcedWinnerIndex.value = index;
+      }
+    } else {
+      forcedWinnerIndex.value = null;
+    }
     const total = names.value.length;
 
     positions.value = names.value.map((_, i) => {
