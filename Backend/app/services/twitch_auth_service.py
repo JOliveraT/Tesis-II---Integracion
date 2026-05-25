@@ -1,7 +1,11 @@
 from datetime import datetime, timezone
+from datetime import timedelta
+import logging
 
 from fastapi import HTTPException
+import jwt
 
+from app.config import settings
 from app.database import supabase
 from app.integrations.twitch.auth import build_auth_url, exchange_code_for_token
 from app.integrations.twitch.client import get_json
@@ -13,12 +17,46 @@ from app.integrations.twitch.config import (
 
 
 TWITCH_CHANNELS_TABLE = "twitch_channels"
+OAUTH_STATE_TTL_MINUTES = 10
+logger = logging.getLogger(__name__)
 
 
-def get_auth_url() -> str:
+def _state_secret() -> str:
+    secret = settings.supabase_service_role_key
+    if not secret:
+        raise HTTPException(status_code=500, detail="JWT secret no configurado")
+    return secret
+
+
+def _build_oauth_state(user_id: str) -> str:
+    now = datetime.now(timezone.utc)
+    payload = {
+        "sub": user_id,
+        "iat": int(now.timestamp()),
+        "exp": int((now + timedelta(minutes=OAUTH_STATE_TTL_MINUTES)).timestamp()),
+        "purpose": "twitch_oauth",
+    }
+    return jwt.encode(payload, _state_secret(), algorithm="HS256")
+
+
+def _resolve_oauth_state(state: str | None) -> str:
+    if not state:
+        raise HTTPException(status_code=400, detail="Falta state en el callback de Twitch.")
+    try:
+        payload = jwt.decode(state, _state_secret(), algorithms=["HS256"])
+    except jwt.PyJWTError as exc:
+        raise HTTPException(status_code=400, detail="State de OAuth inválido o expirado.") from exc
+    if payload.get("purpose") != "twitch_oauth" or not payload.get("sub"):
+        raise HTTPException(status_code=400, detail="State de OAuth inválido.")
+    user_id = str(payload["sub"])
+    logger.info("/twitch/callback oauth state resolved user_id=%s", user_id)
+    return user_id
+
+
+def get_auth_url(user_id: str) -> str:
     if not TWITCH_CLIENT_ID or not TWITCH_REDIRECT_URI:
         raise HTTPException(status_code=400, detail="Missing TWITCH_CLIENT_ID or TWITCH_REDIRECT_URI")
-    return build_auth_url()
+    return build_auth_url(_build_oauth_state(user_id))
 
 
 async def _fetch_twitch_user(access_token: str) -> dict:
@@ -43,7 +81,7 @@ def _to_channel_data(user: dict) -> dict:
     }
 
 
-def _upsert_twitch_channel(*, user: dict, token_payload: dict) -> None:
+def _upsert_twitch_channel(*, user_id: str, user: dict, token_payload: dict) -> dict:
     now_iso = datetime.now(timezone.utc).isoformat()
     db_payload = {
         "twitch_user_id": user.get("id"),
@@ -58,29 +96,36 @@ def _upsert_twitch_channel(*, user: dict, token_payload: dict) -> None:
         "scopes": token_payload.get("scope", []),
         "connected_at": now_iso,
         "updated_at": now_iso,
+        "user_id": user_id,
     }
 
     existing = (
         supabase.table(TWITCH_CHANNELS_TABLE)
-        .select("id")
-        .eq("twitch_user_id", user.get("id"))
+        .select("id,user_id")
+        .eq("user_id", user_id)
+        .order("updated_at", desc=True)
         .limit(1)
         .execute()
     )
 
     if existing.data:
+        channel_id = existing.data[0].get("id")
         (
             supabase.table(TWITCH_CHANNELS_TABLE)
             .update(db_payload)
-            .eq("twitch_user_id", user.get("id"))
+            .eq("id", channel_id)
             .execute()
         )
-        return
+        logger.info("/twitch/callback twitch_channel updated id=%s user_id=%s", channel_id, user_id)
+        return {"id": channel_id, "user_id": user_id}
 
-    supabase.table(TWITCH_CHANNELS_TABLE).insert(db_payload).execute()
+    created = supabase.table(TWITCH_CHANNELS_TABLE).insert(db_payload).execute()
+    row = (created.data or [{}])[0]
+    logger.info("/twitch/callback twitch_channel created id=%s user_id=%s", row.get("id"), user_id)
+    return {"id": row.get("id"), "user_id": user_id}
 
 
-async def handle_twitch_callback(code: str | None) -> dict:
+async def handle_twitch_callback(code: str | None, state: str | None) -> dict:
     if not code:
         return {
             "connected": False,
@@ -89,6 +134,7 @@ async def handle_twitch_callback(code: str | None) -> dict:
             "token_saved": False,
         }
 
+    user_id = _resolve_oauth_state(state)
     token_payload = await exchange_code_for_token(code)
     access_token = token_payload.get("access_token")
 
@@ -96,7 +142,7 @@ async def handle_twitch_callback(code: str | None) -> dict:
         raise HTTPException(status_code=400, detail="No se recibió access token desde Twitch.")
 
     user = await _fetch_twitch_user(access_token)
-    _upsert_twitch_channel(user=user, token_payload=token_payload)
+    _upsert_twitch_channel(user_id=user_id, user=user, token_payload=token_payload)
 
     return {
         "connected": True,
@@ -106,7 +152,7 @@ async def handle_twitch_callback(code: str | None) -> dict:
     }
 
 
-async def get_me(access_token: str | None = None) -> dict:
+async def get_me(*, user_id: str, access_token: str | None = None) -> dict:
     if access_token:
         try:
             headers = {
@@ -120,10 +166,13 @@ async def get_me(access_token: str | None = None) -> dict:
     stored_channel = (
         supabase.table(TWITCH_CHANNELS_TABLE)
         .select("twitch_user_id, login, display_name, email, profile_image_url")
+        .eq("user_id", user_id)
         .order("updated_at", desc=True)
         .limit(1)
         .execute()
     )
+    logger.info("/twitch/me auth user_id=%s", user_id)
+    logger.info("/twitch/me twitch lookup rows=%s", stored_channel.data or [])
 
     if stored_channel.data:
         channel = stored_channel.data[0]
@@ -146,10 +195,11 @@ async def get_me(access_token: str | None = None) -> dict:
     }
 
 
-async def disconnect_channel() -> dict:
+async def disconnect_channel(*, user_id: str) -> dict:
     existing = (
         supabase.table(TWITCH_CHANNELS_TABLE)
         .select("id")
+        .eq("user_id", user_id)
         .order("updated_at", desc=True)
         .limit(1)
         .execute()
