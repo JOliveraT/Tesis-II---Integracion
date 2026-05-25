@@ -3,7 +3,7 @@ from typing import Any, Dict, Literal
 
 from pydantic import BaseModel, Field
 
-OverlayState = Literal["idle", "hidden", "raffle_animation", "winner_direct"]
+OverlayState = Literal["idle", "hidden", "raffle_animation", "winner_direct", "claim_pending", "claim_confirmed", "claim_expired"]
 
 
 class OverlayStateResponse(BaseModel):
