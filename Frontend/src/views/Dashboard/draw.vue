@@ -254,6 +254,7 @@ import { raffleService } from '@/services/raffleService';
 import { participantService } from '@/services/participantService';
 import { useTwitchStore } from '@/stores/twitchStore';
 import { useAuthStore } from '@/stores/authStore';
+import { overlayService } from '@/services/overlayService';
 
   export default {
     components: {
@@ -475,6 +476,20 @@ import { useAuthStore } from '@/stores/authStore';
           const width = screen.availWidth;
           const height = screen.availHeight;
           window.open(url, 'AnimacionSorteo', `width=${width},height=${height},top=0,left=0,resizable=yes,scrollbars=no`);
+
+          // TODO: reemplazar por overlay token real del streamer desde perfil/conexiones.
+          overlayService.updateOverlayState({
+            overlay_token: 'dev-overlay',
+            current_state: 'raffle_animation',
+            payload: {
+              raffle_id: this.raffleId,
+              participants: this.participants,
+              winner: this.winner,
+              prize: this.prize || '',
+            },
+          }).catch((overlayError) => {
+            console.warn('[draw.vue] No se pudo actualizar overlay fijo:', overlayError);
+          });
         } catch (error) {
           this.drawError = "No se pudo completar el sorteo. Revisa la conexión e intenta nuevamente.";
         } finally {
