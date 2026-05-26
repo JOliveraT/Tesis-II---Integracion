@@ -11,7 +11,8 @@ from app.routers import (
     redemptions,
     twitch_auth,
     auth,
-    overlay
+    overlay,
+    twitch_chat
 )
 
 app = FastAPI(
@@ -41,6 +42,7 @@ app.include_router(redemptions.router)
 app.include_router(twitch_auth.router)
 app.include_router(auth.router)
 app.include_router(overlay.router)
+app.include_router(twitch_chat.router)
 
 
 @app.get("/health")
