@@ -4,6 +4,8 @@ from fastapi import HTTPException
 
 from app.database import supabase
 from app.schemas.enums import EntrySource
+from app.services.supabase_retry import execute_with_retry
+import httpx
 
 
 def normalize_username(username: str) -> str:
@@ -140,16 +142,19 @@ def bulk_register_participants(raffle_id: str, participants: list[dict]):
 
 
 def list_raffle_participants(raffle_id: str):
-    _validate_active_raffle(raffle_id)
+    try:
+        execute_with_retry(lambda: _validate_active_raffle(raffle_id))
 
-    response = (
+        response = execute_with_retry(lambda: (
         supabase.table("raffle_participants")
         .select("participant_id, entry_source, status, is_eligible, final_score, joined_at, participants:participant_id(username, display_name, twitch_user_id)")
         .eq("raffle_id", raffle_id)
         .neq("status", "removed")
         .order("joined_at", desc=False)
         .execute()
-    )
+    ))
+    except (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException) as error:
+        raise HTTPException(status_code=503, detail="No se pudo obtener temporalmente la lista de participantes.") from error
 
     data = []
     for item in response.data or []:
