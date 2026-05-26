@@ -2,6 +2,11 @@ from fastapi import APIRouter, Depends
 
 from app.schemas.twitch_chat_schema import TwitchTestMessageRequest
 from app.services.auth_service import get_current_user
+from app.services.twitch_chat_listener_service import (
+    get_chat_listener_status,
+    start_chat_listener,
+    stop_chat_listener,
+)
 from app.services.twitch_chat_service import process_test_message
 
 router = APIRouter(prefix="/twitch/chat", tags=["Twitch Chat"])
@@ -17,3 +22,18 @@ def process_twitch_test_message(data: TwitchTestMessageRequest, user=Depends(get
         display_name=data.display_name,
         message_text=data.message_text,
     )
+
+
+@router.post("/start")
+async def start_twitch_chat_listener(user=Depends(get_current_user)):
+    return await start_chat_listener(user_id=user["id"])
+
+
+@router.post("/stop")
+async def stop_twitch_chat_listener(user=Depends(get_current_user)):
+    return await stop_chat_listener(user_id=user["id"])
+
+
+@router.get("/status")
+def twitch_chat_listener_status(user=Depends(get_current_user)):
+    return get_chat_listener_status(user_id=user["id"])
