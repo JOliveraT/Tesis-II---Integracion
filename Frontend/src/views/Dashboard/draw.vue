@@ -269,6 +269,8 @@ import { overlayService } from '@/services/overlayService';
         prize: "",
         manualInput: "",
         participants: [],
+        manualParticipants: [],
+        backendParticipants: [],
         participantsPollingInterval: null,
         isStopped: false,
         winner: "",
@@ -376,12 +378,25 @@ import { overlayService } from '@/services/overlayService';
       },
 
       normalizeUsername(value) {
-        return (value || '').trim().toLowerCase().replace(/\s+/g, '_');
+        return (value || '').trim().replace(/^@+/, '').toLowerCase().replace(/\s+/g, '_');
       },
       getParticipantKey(participant) {
-        if (participant?.participant_id) return `id:${participant.participant_id}`;
         const username = this.normalizeUsername(participant?.username || participant?.display_name || participant);
         return username ? `username:${username}` : '';
+      },
+      mergeParticipants() {
+        const mergedMap = new Map();
+        this.manualParticipants.forEach((item) => {
+          const key = this.getParticipantKey(item);
+          if (!key) return;
+          mergedMap.set(key, { ...item, entry_source: item.entry_source || 'manual', participant_id: item.participant_id || null });
+        });
+        this.backendParticipants.forEach((item) => {
+          const key = this.getParticipantKey(item);
+          if (!key) return;
+          mergedMap.set(key, { ...item, entry_source: item.entry_source || 'manual' });
+        });
+        this.participants = Array.from(mergedMap.values());
       },
       getParticipantSourceLabel(source) {
         if (source === 'chat_command') return 'Chat';
@@ -414,26 +429,13 @@ import { overlayService } from '@/services/overlayService';
             entry_source: item.entry_source || null,
           }));
 
-          const mergedMap = new Map();
-          this.participants.forEach((item) => {
-            const key = this.getParticipantKey(item);
-            if (!key) return;
-            mergedMap.set(key, {
-              participant_id: item.participant_id || null,
-              username: this.normalizeUsername(item.username || item.display_name),
-              display_name: item.display_name || item.username,
-              entry_source: item.entry_source || 'manual',
-            });
-          });
-          backendNormalized.forEach((item) => {
-            const key = this.getParticipantKey(item);
-            if (!key) return;
-            mergedMap.set(key, item);
-          });
-          this.participants = Array.from(mergedMap.values());
-          this.manualParticipantsSynced = this.participants.filter((p) => p.entry_source === 'manual' && !p.participant_id).length === 0;
+          this.backendParticipants = backendNormalized;
+          const backendUsernames = new Set(backendNormalized.map((item) => this.normalizeUsername(item.username)));
+          this.manualParticipants = this.manualParticipants.filter((item) => !backendUsernames.has(this.normalizeUsername(item.username || item.display_name)));
+          this.mergeParticipants();
+          this.manualParticipantsSynced = this.manualParticipants.length === 0;
         } catch (error) {
-          console.warn('[draw.vue] No se pudieron cargar participantes del sorteo:', error);
+          console.warn('[draw.vue] Polling temporalmente no disponible.');
         }
       },
       extractWinnerName(response) {
@@ -503,7 +505,7 @@ import { overlayService } from '@/services/overlayService';
         const exists = this.participants.some((p) => this.getParticipantKey(p) === `username:${normalized}`);
         if (exists) { this.drawError = "Ese participante ya fue agregado."; return; }
         this.drawError = "";
-        this.participants.push({
+        this.manualParticipants.push({
           participant_id: null,
           username: normalized,
           display_name: cleaned,
@@ -511,10 +513,15 @@ import { overlayService } from '@/services/overlayService';
         });
         this.manualInput = "";
         this.manualParticipantsSynced = false;
+        this.mergeParticipants();
       },
       removeParticipant(index) {
         if (!this.guardDrawActions() || this.isRaffleRunning) return;
-        this.participants.splice(index, 1);
+        const participant = this.participants[index];
+        const key = this.getParticipantKey(participant);
+        this.manualParticipants = this.manualParticipants.filter((item) => this.getParticipantKey(item) !== key);
+        this.backendParticipants = this.backendParticipants.filter((item) => this.getParticipantKey(item) !== key);
+        this.mergeParticipants();
         this.manualParticipantsSynced = false;
       },
       stopSort() {
@@ -536,6 +543,8 @@ import { overlayService } from '@/services/overlayService';
       clearParticipants() {
         if (!this.guardDrawActions() || this.isRaffleRunning) return;
         this.participants = [];
+        this.manualParticipants = [];
+        this.backendParticipants = [];
         this.manualParticipantsSynced = false;
         // TODO: cuando existan participantes sincronizados desde backend, usar soft-remove para los que ya estén persistidos.
       },
@@ -569,8 +578,8 @@ import { overlayService } from '@/services/overlayService';
             this.isSyncingParticipants = true;
             await participantService.bulkCreate({
               raffle_id: this.raffleId,
-              participants: this.participants
-                .filter((participant) => participant.entry_source === "manual" && !participant.participant_id)
+              participants: this.manualParticipants
+                .filter((participant) => participant.entry_source === "manual" && !participant.participant_id && !this.backendParticipants.some((bp) => this.normalizeUsername(bp.username) === this.normalizeUsername(participant.username || participant.display_name)))
                 .map((participant) => ({
                   username: this.normalizeUsername(participant.username || participant.display_name),
                   display_name: (participant.display_name || participant.username || '').trim(),
