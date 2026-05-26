@@ -7,6 +7,7 @@ from app.schemas.participant_schema import (
 )
 from app.services.participant_service import (
     bulk_register_participants,
+    list_raffle_participants,
     register_participant_in_raffle,
 )
 
@@ -44,3 +45,8 @@ def bulk_create_participants(data: BulkCreateParticipantsRequest):
         participants=[participant.model_dump() for participant in data.participants],
     )
 
+
+
+@router.get("/raffle/{raffle_id}")
+def get_raffle_participants(raffle_id: str):
+    return list_raffle_participants(raffle_id)
