@@ -85,13 +85,13 @@ def _get_or_create_participant(twitch_user_id: str, username: str, display_name:
     return created.data[0]
 
 
-def process_test_message(*, user_id: str, message_id: str, twitch_user_id: str, username: str, display_name: str | None, message_text: str) -> dict:
+def process_chat_message(*, streamer_user_id: str, message_id: str, twitch_user_id: str, username: str, display_name: str | None, message_text: str) -> dict:
     if not message_id.strip():
         raise HTTPException(status_code=400, detail="message_id es obligatorio.")
     if not message_text.strip():
         raise HTTPException(status_code=400, detail="message_text no debe estar vacío.")
 
-    channel = _resolve_user_channel(user_id)
+    channel = _resolve_user_channel(streamer_user_id)
     raffle = _resolve_latest_processible_raffle(channel["id"])
 
     duplicate_entry = (
@@ -192,3 +192,15 @@ def process_test_message(*, user_id: str, message_id: str, twitch_user_id: str, 
             "duplicate_event": False,
         },
     }
+
+
+
+def process_test_message(*, user_id: str, message_id: str, twitch_user_id: str, username: str, display_name: str | None, message_text: str) -> dict:
+    return process_chat_message(
+        streamer_user_id=user_id,
+        message_id=message_id,
+        twitch_user_id=twitch_user_id,
+        username=username,
+        display_name=display_name,
+        message_text=message_text,
+    )

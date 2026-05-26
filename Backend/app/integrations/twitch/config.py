@@ -11,5 +11,6 @@ FRONTEND_BASE_URL = settings.frontend_base_url
 TWITCH_SCOPES = [
     "user:read:email",
     "channel:read:redemptions",
-    "chat:read"
+    "chat:read",
+    "user:read:chat"
 ]
