@@ -138,6 +138,39 @@ def bulk_register_participants(raffle_id: str, participants: list[dict]):
     }
 
 
+
+def list_raffle_participants(raffle_id: str):
+    _validate_active_raffle(raffle_id)
+
+    response = (
+        supabase.table("raffle_participants")
+        .select("participant_id, entry_source, status, is_eligible, final_score, joined_at, participants:participant_id(username, display_name, twitch_user_id)")
+        .eq("raffle_id", raffle_id)
+        .neq("status", "removed")
+        .order("joined_at", desc=False)
+        .execute()
+    )
+
+    data = []
+    for item in response.data or []:
+        participant = item.get("participants") or {}
+        data.append({
+            "participant_id": item.get("participant_id"),
+            "username": participant.get("username"),
+            "display_name": participant.get("display_name"),
+            "twitch_user_id": participant.get("twitch_user_id"),
+            "entry_source": item.get("entry_source"),
+            "status": item.get("status"),
+            "is_eligible": item.get("is_eligible"),
+            "final_score": item.get("final_score"),
+            "joined_at": item.get("joined_at"),
+        })
+
+    return {
+        "message": "Participantes obtenidos correctamente",
+        "data": data,
+    }
+
 def remove_participant_from_raffle(raffle_id: str, participant_id: str, reason: str | None = None):
     _validate_active_raffle(raffle_id)
 
