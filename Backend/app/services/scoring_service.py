@@ -87,7 +87,7 @@ def calculate_participation_score(raffle_id: str):
         )
 
         final_score = max(0, min(final_score, 100))
-        is_eligible = final_score >= 50
+        is_eligible = final_score >= 0
 
         reason = (
             "Participación válida con interacción suficiente."
