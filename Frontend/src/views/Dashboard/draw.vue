@@ -176,7 +176,7 @@
 
             <!-- Botón de Sorteo -->
             <div class="text-center mt-3">
-              <button class="btn btn-primary" @click="startSort"  :disabled="isStopped || isRaffleNotReady || isRaffleRunning || isSyncingParticipants">¡A SORTEAR!</button>
+              <button class="btn btn-primary" @click="startSort"  :disabled="isSortButtonDisabled">{{ sortButtonText }}</button>
             </div>
           </div>
         </div>
@@ -269,6 +269,8 @@ import { overlayService } from '@/services/overlayService';
         prize: "",
         manualInput: "",
         participants: [],
+        manualParticipants: [],
+        backendParticipants: [],
         participantsPollingInterval: null,
         isStopped: false,
         winner: "",
@@ -289,6 +291,8 @@ import { overlayService } from '@/services/overlayService';
         manualParticipantsSynced: false,
         isSyncingParticipants: false,
         isRaffleRunning: false,
+        raffleFinished: false,
+        hasWinnerSelected: false,
         isClaimStarted: false,
         claimExpiresAt: null,
         twitchStore: null,
@@ -310,6 +314,12 @@ import { overlayService } from '@/services/overlayService';
       },
       isRaffleNotReady() {
         return this.isDrawLocked || !this.hasActiveRaffle || this.isCreatingRaffle || this.isRaffleRunning;
+      },
+      isSortButtonDisabled() {
+        return this.isStopped || this.isRaffleNotReady || this.isRaffleRunning || this.isSyncingParticipants || this.raffleFinished || this.hasWinnerSelected;
+      },
+      sortButtonText() {
+        return (this.raffleFinished || this.hasWinnerSelected) ? "Sorteo finalizado" : "¡A SORTEAR!";
       },
       canStartCountdown() {
         return !this.isDrawLocked && this.hasActiveRaffle && this.confirmationMode === "chat_confirmation" && Boolean(this.winner) && !this.isClaimStarted;
@@ -376,12 +386,39 @@ import { overlayService } from '@/services/overlayService';
       },
 
       normalizeUsername(value) {
-        return (value || '').trim().toLowerCase().replace(/\s+/g, '_');
+        return (value || '')
+          .toLowerCase()
+          .trim()
+          .replace(/^@+/, '')
+          .replace(/\s+/g, '_')
+          .replace(/_+/g, '_');
       },
       getParticipantKey(participant) {
-        if (participant?.participant_id) return `id:${participant.participant_id}`;
-        const username = this.normalizeUsername(participant?.username || participant?.display_name || participant);
+        const username = this.normalizeUsername(participant?.username || participant?.name || participant?.display_name || participant);
         return username ? `username:${username}` : '';
+      },
+      dedupeParticipantsForDraw(list = []) {
+        const deduped = new Map();
+        list.forEach((participant) => {
+          const key = this.getParticipantKey(participant);
+          if (!key) return;
+          deduped.set(key, participant);
+        });
+        return Array.from(deduped.values());
+      },
+      mergeParticipants() {
+        const mergedMap = new Map();
+        this.manualParticipants.forEach((item) => {
+          const key = this.getParticipantKey(item);
+          if (!key) return;
+          mergedMap.set(key, { ...item, entry_source: item.entry_source || 'manual', participant_id: item.participant_id || null });
+        });
+        this.backendParticipants.forEach((item) => {
+          const key = this.getParticipantKey(item);
+          if (!key) return;
+          mergedMap.set(key, { ...item, entry_source: item.entry_source || 'manual' });
+        });
+        this.participants = this.dedupeParticipantsForDraw(Array.from(mergedMap.values()));
       },
       getParticipantSourceLabel(source) {
         if (source === 'chat_command') return 'Chat';
@@ -391,7 +428,7 @@ import { overlayService } from '@/services/overlayService';
       },
       startParticipantsPolling() {
         this.stopParticipantsPolling();
-        if (!this.raffleId) return;
+        if (!this.raffleId || this.raffleFinished || this.hasWinnerSelected) return;
         this.participantsPollingInterval = setInterval(() => {
           this.loadRaffleParticipants();
         }, 3000);
@@ -403,7 +440,7 @@ import { overlayService } from '@/services/overlayService';
         }
       },
       async loadRaffleParticipants() {
-        if (!this.raffleId) return;
+        if (!this.raffleId || this.raffleFinished || this.hasWinnerSelected) return;
         try {
           const response = await participantService.getRaffleParticipants(this.raffleId);
           const backendParticipants = Array.isArray(response?.data) ? response.data : [];
@@ -414,27 +451,33 @@ import { overlayService } from '@/services/overlayService';
             entry_source: item.entry_source || null,
           }));
 
-          const mergedMap = new Map();
-          this.participants.forEach((item) => {
-            const key = this.getParticipantKey(item);
-            if (!key) return;
-            mergedMap.set(key, {
-              participant_id: item.participant_id || null,
-              username: this.normalizeUsername(item.username || item.display_name),
-              display_name: item.display_name || item.username,
-              entry_source: item.entry_source || 'manual',
-            });
-          });
-          backendNormalized.forEach((item) => {
-            const key = this.getParticipantKey(item);
-            if (!key) return;
-            mergedMap.set(key, item);
-          });
-          this.participants = Array.from(mergedMap.values());
-          this.manualParticipantsSynced = this.participants.filter((p) => p.entry_source === 'manual' && !p.participant_id).length === 0;
+          this.backendParticipants = backendNormalized;
+          const backendUsernames = new Set(backendNormalized.map((item) => this.normalizeUsername(item.username)));
+          this.manualParticipants = this.manualParticipants.filter((item) => !backendUsernames.has(this.normalizeUsername(item.username || item.display_name)));
+          this.mergeParticipants();
+          this.manualParticipantsSynced = this.manualParticipants.length === 0;
         } catch (error) {
-          console.warn('[draw.vue] No se pudieron cargar participantes del sorteo:', error);
+          const status = error?.response?.status;
+          if (status === 503) {
+            console.warn('[draw.vue] Participantes temporalmente no disponibles (503).');
+            return;
+          }
+          if (status === 400 || status === 404) {
+            this.stopParticipantsPolling();
+            this.drawError = "El sorteo actual ya no está disponible o fue finalizado.";
+            return;
+          }
+          console.warn('[draw.vue] Polling temporalmente no disponible.');
         }
+      },
+      resetRaffleState() {
+        this.raffleFinished = false;
+        this.hasWinnerSelected = false;
+        this.isRaffleRunning = false;
+        this.winner = "";
+        this.backendParticipants = [];
+        this.manualParticipants = [];
+        this.participants = [];
       },
       extractWinnerName(response) {
         const winnerName = response?.winner?.username
@@ -479,6 +522,8 @@ import { overlayService } from '@/services/overlayService';
           if (!raffleId) {
             throw new Error("No se recibió el ID del sorteo creado.");
           }
+          this.stopParticipantsPolling();
+          this.resetRaffleState();
           this.raffleId = raffleId;
           this.confirmationMode = mode;
           this.manualParticipantsSynced = false;
@@ -503,7 +548,7 @@ import { overlayService } from '@/services/overlayService';
         const exists = this.participants.some((p) => this.getParticipantKey(p) === `username:${normalized}`);
         if (exists) { this.drawError = "Ese participante ya fue agregado."; return; }
         this.drawError = "";
-        this.participants.push({
+        this.manualParticipants.push({
           participant_id: null,
           username: normalized,
           display_name: cleaned,
@@ -511,10 +556,15 @@ import { overlayService } from '@/services/overlayService';
         });
         this.manualInput = "";
         this.manualParticipantsSynced = false;
+        this.mergeParticipants();
       },
       removeParticipant(index) {
         if (!this.guardDrawActions() || this.isRaffleRunning) return;
-        this.participants.splice(index, 1);
+        const participant = this.participants[index];
+        const key = this.getParticipantKey(participant);
+        this.manualParticipants = this.manualParticipants.filter((item) => this.getParticipantKey(item) !== key);
+        this.backendParticipants = this.backendParticipants.filter((item) => this.getParticipantKey(item) !== key);
+        this.mergeParticipants();
         this.manualParticipantsSynced = false;
       },
       stopSort() {
@@ -535,7 +585,14 @@ import { overlayService } from '@/services/overlayService';
       },
       clearParticipants() {
         if (!this.guardDrawActions() || this.isRaffleRunning) return;
+        if (this.raffleFinished || this.hasWinnerSelected) {
+          this.manualParticipants = [];
+          this.mergeParticipants();
+          return;
+        }
         this.participants = [];
+        this.manualParticipants = [];
+        this.backendParticipants = [];
         this.manualParticipantsSynced = false;
         // TODO: cuando existan participantes sincronizados desde backend, usar soft-remove para los que ya estén persistidos.
       },
@@ -553,6 +610,7 @@ import { overlayService } from '@/services/overlayService';
 
       async startSort() {
         if (!this.guardDrawActions()) return;
+        if (this.isRaffleRunning || this.hasWinnerSelected || this.raffleFinished) return;
         if (!this.hasActiveRaffle) {
           this.drawError = "Primero selecciona el tipo de sorteo.";
           return;
@@ -569,8 +627,8 @@ import { overlayService } from '@/services/overlayService';
             this.isSyncingParticipants = true;
             await participantService.bulkCreate({
               raffle_id: this.raffleId,
-              participants: this.participants
-                .filter((participant) => participant.entry_source === "manual" && !participant.participant_id)
+              participants: this.manualParticipants
+                .filter((participant) => participant.entry_source === "manual" && !participant.participant_id && !this.backendParticipants.some((bp) => this.normalizeUsername(bp.username) === this.normalizeUsername(participant.username || participant.display_name)))
                 .map((participant) => ({
                   username: this.normalizeUsername(participant.username || participant.display_name),
                   display_name: (participant.display_name || participant.username || '').trim(),
@@ -591,10 +649,15 @@ import { overlayService } from '@/services/overlayService';
           }
           this.winner = extractedWinnerName;
           this.drawSuccess = "Ganador seleccionado.";
+          this.hasWinnerSelected = true;
+          this.raffleFinished = true;
+          this.stopParticipantsPolling();
+
+          const drawParticipants = this.dedupeParticipantsForDraw(this.participants);
 
           const prizeTitle = typeof this.prizeTitle === 'string' ? this.prizeTitle : '';
           const prizeName = (this.prize || prizeTitle || '').trim() || "Sin premio";
-          const nombresURL = encodeURIComponent(this.participants.map((p) => p.display_name || p.username).join(','));
+          const nombresURL = encodeURIComponent(drawParticipants.map((p) => p.display_name || p.username).join(','));
           const premioURL = encodeURIComponent(prizeName);
           const ganadorURL = encodeURIComponent(extractedWinnerName);
           const url = `/dashboard-layout/draw/animation?names=${nombresURL}&prize=${premioURL}&winner=${ganadorURL}`;
@@ -609,7 +672,7 @@ import { overlayService } from '@/services/overlayService';
             current_state: 'raffle_animation',
             payload: {
               raffle_id: this.raffleId,
-              participants: Array.isArray(this.participants) ? this.participants.map((p) => p.display_name || p.username) : [],
+              participants: Array.isArray(drawParticipants) ? drawParticipants.map((p) => p.display_name || p.username) : [],
               winner: extractedWinnerName,
               prize: prizeName,
               confirmation_mode: this.confirmationMode || 'instant',
