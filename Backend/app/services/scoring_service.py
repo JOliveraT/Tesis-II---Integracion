@@ -2,10 +2,10 @@ import httpx
 from fastapi import HTTPException
 
 from app.database import supabase
-from app.services.supabase_retry import execute_with_retry
+from app.services.supabase_retry import RETRYABLE_SUPABASE_ERRORS, execute_with_retry
 
 
-RETRYABLE_ERRORS = (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException)
+RETRYABLE_ERRORS = RETRYABLE_SUPABASE_ERRORS
 
 
 def _safe_supabase(query):
@@ -20,7 +20,7 @@ def _safe_supabase(query):
 
 def calculate_participation_score(raffle_id: str):
     raffle_response = _safe_supabase(
-        lambda: supabase.table("raffles").select("*").eq("id", raffle_id).single().execute()
+        supabase.table("raffles").select("*").eq("id", raffle_id).single()
     )
 
     raffle = raffle_response.data
@@ -35,15 +35,14 @@ def calculate_participation_score(raffle_id: str):
         )
 
     _safe_supabase(
-        lambda: supabase.table("participation_scores").delete().eq("raffle_id", raffle_id).execute()
+        supabase.table("participation_scores").delete().eq("raffle_id", raffle_id)
     )
 
     raffle_participants_response = _safe_supabase(
-        lambda: supabase.table("raffle_participants")
+        supabase.table("raffle_participants")
         .select("participant_id")
         .eq("raffle_id", raffle_id)
         .neq("status", "removed")
-        .execute()
     )
 
     results = []
@@ -52,17 +51,16 @@ def calculate_participation_score(raffle_id: str):
         participant_id = rp["participant_id"]
 
         participant_response = _safe_supabase(
-            lambda: supabase.table("participants").select("*").eq("id", participant_id).single().execute()
+            supabase.table("participants").select("*").eq("id", participant_id).single()
         )
 
         participant = participant_response.data
 
         messages_response = _safe_supabase(
-            lambda: supabase.table("chat_messages")
+            supabase.table("chat_messages")
             .select("*")
             .eq("raffle_id", raffle_id)
             .eq("participant_id", participant_id)
-            .execute()
         )
 
         user_messages = messages_response.data
@@ -74,11 +72,10 @@ def calculate_participation_score(raffle_id: str):
         command_used = any(m["is_command"] is True for m in user_messages)
 
         reward_response = _safe_supabase(
-            lambda: supabase.table("channel_point_redemptions")
+            supabase.table("channel_point_redemptions")
             .select("*")
             .eq("raffle_id", raffle_id)
             .eq("participant_id", participant_id)
-            .execute()
         )
 
         reward_used = len(reward_response.data) > 0
@@ -104,7 +101,7 @@ def calculate_participation_score(raffle_id: str):
         )
 
         score_response = _safe_supabase(
-            lambda: supabase.table("participation_scores")
+            supabase.table("participation_scores")
             .insert(
                 {
                     "raffle_id": raffle_id,
@@ -123,15 +120,13 @@ def calculate_participation_score(raffle_id: str):
                     "reason": reason,
                 }
             )
-            .execute()
         )
 
         _safe_supabase(
-            lambda: supabase.table("raffle_participants")
+            supabase.table("raffle_participants")
             .update({"is_eligible": is_eligible, "final_score": final_score, "status": "evaluated"})
             .eq("raffle_id", raffle_id)
             .eq("participant_id", participant_id)
-            .execute()
         )
 
         results.append(

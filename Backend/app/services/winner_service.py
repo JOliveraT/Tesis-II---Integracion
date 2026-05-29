@@ -1,15 +1,29 @@
 import random
 from datetime import datetime, timezone, timedelta
+
 from fastapi import HTTPException
+
 from app.database import supabase
+from app.services.supabase_retry import RETRYABLE_SUPABASE_ERRORS, execute_with_retry
+
+
+def _safe_supabase(query):
+    try:
+        return execute_with_retry(query)
+    except RETRYABLE_SUPABASE_ERRORS as error:
+        raise HTTPException(
+            status_code=503,
+            detail="No se pudo seleccionar temporalmente el ganador. Inténtalo nuevamente.",
+        ) from error
 
 
 def get_current_pending_result(raffle_id: str):
-    response = supabase.table("raffle_results") \
-        .select("*") \
-        .eq("raffle_id", raffle_id) \
-        .in_("claim_status", ["waiting_start", "pending"]) \
-        .execute()
+    response = _safe_supabase(
+        supabase.table("raffle_results")
+        .select("*")
+        .eq("raffle_id", raffle_id)
+        .in_("claim_status", ["waiting_start", "pending"])
+    )
 
     if response.data:
         return response.data[0]
@@ -18,11 +32,12 @@ def get_current_pending_result(raffle_id: str):
 
 
 def select_weighted_winner(raffle_id: str):
-    raffle_response = supabase.table("raffles") \
-        .select("*") \
-        .eq("id", raffle_id) \
-        .single() \
-        .execute()
+    raffle_response = _safe_supabase(
+        supabase.table("raffles")
+        .select("*")
+        .eq("id", raffle_id)
+        .single()
+    )
 
     raffle = raffle_response.data
 
@@ -35,11 +50,12 @@ def select_weighted_winner(raffle_id: str):
             detail="Solo se puede seleccionar ganador en sorteos activos."
         )
 
-    existing_confirmed = supabase.table("raffle_results") \
-        .select("*") \
-        .eq("raffle_id", raffle_id) \
-        .eq("claim_status", "confirmed") \
-        .execute()
+    existing_confirmed = _safe_supabase(
+        supabase.table("raffle_results")
+        .select("*")
+        .eq("raffle_id", raffle_id)
+        .eq("claim_status", "confirmed")
+    )
 
     if existing_confirmed.data:
         raise HTTPException(
@@ -55,11 +71,12 @@ def select_weighted_winner(raffle_id: str):
             detail="Ya existe un candidato ganador pendiente de confirmación."
         )
 
-    expired_results = supabase.table("raffle_results") \
-        .select("winner_participant_id") \
-        .eq("raffle_id", raffle_id) \
-        .eq("claim_status", "expired") \
-        .execute()
+    expired_results = _safe_supabase(
+        supabase.table("raffle_results")
+        .select("winner_participant_id")
+        .eq("raffle_id", raffle_id)
+        .eq("claim_status", "expired")
+    )
 
     expired_participant_ids = {
         item["winner_participant_id"]
@@ -67,12 +84,13 @@ def select_weighted_winner(raffle_id: str):
         if item.get("winner_participant_id")
     }
 
-    participants_response = supabase.table("raffle_participants") \
-        .select("participant_id, final_score, is_eligible") \
-        .eq("raffle_id", raffle_id) \
-        .eq("is_eligible", True) \
-        .neq("status", "removed") \
-        .execute()
+    participants_response = _safe_supabase(
+        supabase.table("raffle_participants")
+        .select("participant_id, final_score, is_eligible")
+        .eq("raffle_id", raffle_id)
+        .eq("is_eligible", True)
+        .neq("status", "removed")
+    )
 
     eligible_participants = participants_response.data
 
@@ -110,11 +128,12 @@ def select_weighted_winner(raffle_id: str):
         k=1
     )[0]
 
-    participant_response = supabase.table("participants") \
-        .select("*") \
-        .eq("id", selected["participant_id"]) \
-        .single() \
-        .execute()
+    participant_response = _safe_supabase(
+        supabase.table("participants")
+        .select("*")
+        .eq("id", selected["participant_id"])
+        .single()
+    )
 
     winner = participant_response.data
 
@@ -135,7 +154,8 @@ def select_weighted_winner(raffle_id: str):
         claim_started_at = None
         claim_expires_at = None
 
-    result_response = supabase.table("raffle_results") \
+    result_response = _safe_supabase(
+        supabase.table("raffle_results")
         .insert({
             "raffle_id": raffle_id,
             "winner_participant_id": winner["id"],
@@ -146,24 +166,26 @@ def select_weighted_winner(raffle_id: str):
             "claim_started_at": claim_started_at,
             "claim_expires_at": claim_expires_at,
             "confirmed_at": confirmed_at
-        }) \
-        .execute()
+        })
+    )
 
-    supabase.table("raffles") \
+    _safe_supabase(
+        supabase.table("raffles")
         .update({
             "status": raffle_status
-        }) \
-        .eq("id", raffle_id) \
-        .execute()
+        })
+        .eq("id", raffle_id)
+    )
 
-    supabase.table("audit_logs") \
+    _safe_supabase(
+        supabase.table("audit_logs")
         .insert({
             "raffle_id": raffle_id,
             "participant_id": winner["id"],
             "action": "winner_selected",
             "detail": f"Candidato ganador seleccionado mediante sorteo ponderado con score {selected['weight']}."
-        }) \
-        .execute()
+        })
+    )
 
     return {
         "message": "Ganador seleccionado correctamente.",
@@ -182,11 +204,12 @@ def select_weighted_winner(raffle_id: str):
 
 
 def start_claim_timer(raffle_id: str, claim_timeout_seconds: int):
-    raffle_response = supabase.table("raffles") \
-        .select("*") \
-        .eq("id", raffle_id) \
-        .single() \
-        .execute()
+    raffle_response = _safe_supabase(
+        supabase.table("raffles")
+        .select("*")
+        .eq("id", raffle_id)
+        .single()
+    )
 
     raffle = raffle_response.data
 
@@ -216,24 +239,26 @@ def start_claim_timer(raffle_id: str, claim_timeout_seconds: int):
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=claim_timeout_seconds)
 
-    response = supabase.table("raffle_results") \
+    response = _safe_supabase(
+        supabase.table("raffle_results")
         .update({
             "claim_status": "pending",
             "claim_timeout_seconds": claim_timeout_seconds,
             "claim_started_at": now.isoformat(),
             "claim_expires_at": expires_at.isoformat()
-        }) \
-        .eq("id", result["id"]) \
-        .execute()
+        })
+        .eq("id", result["id"])
+    )
 
-    supabase.table("audit_logs") \
+    _safe_supabase(
+        supabase.table("audit_logs")
         .insert({
             "raffle_id": raffle_id,
             "participant_id": result["winner_participant_id"],
             "action": "claim_timer_started",
             "detail": f"Se inició el tiempo de confirmación por {claim_timeout_seconds} segundos."
-        }) \
-        .execute()
+        })
+    )
 
     return {
         "message": "Tiempo de confirmación iniciado.",
@@ -273,29 +298,32 @@ def confirm_winner(raffle_id: str):
                 detail="El tiempo de confirmación ya expiró."
             )
 
-    response = supabase.table("raffle_results") \
+    response = _safe_supabase(
+        supabase.table("raffle_results")
         .update({
             "claim_status": "confirmed",
             "confirmed_at": now.isoformat()
-        }) \
-        .eq("id", result["id"]) \
-        .execute()
+        })
+        .eq("id", result["id"])
+    )
 
-    supabase.table("raffles") \
+    _safe_supabase(
+        supabase.table("raffles")
         .update({
             "status": "finished"
-        }) \
-        .eq("id", raffle_id) \
-        .execute()
+        })
+        .eq("id", raffle_id)
+    )
 
-    supabase.table("audit_logs") \
+    _safe_supabase(
+        supabase.table("audit_logs")
         .insert({
             "raffle_id": raffle_id,
             "participant_id": result["winner_participant_id"],
             "action": "winner_confirmed",
             "detail": "El ganador confirmó su presencia dentro del tiempo establecido."
-        }) \
-        .execute()
+        })
+    )
 
     return {
         "message": "Ganador confirmado correctamente.",
@@ -313,28 +341,31 @@ def expire_current_claim(raffle_id: str):
             detail="No hay confirmación pendiente para expirar."
         )
 
-    response = supabase.table("raffle_results") \
+    response = _safe_supabase(
+        supabase.table("raffle_results")
         .update({
             "claim_status": "expired"
-        }) \
-        .eq("id", result["id"]) \
-        .execute()
+        })
+        .eq("id", result["id"])
+    )
 
-    supabase.table("raffles") \
+    _safe_supabase(
+        supabase.table("raffles")
         .update({
             "status": "active"
-        }) \
-        .eq("id", raffle_id) \
-        .execute()
+        })
+        .eq("id", raffle_id)
+    )
 
-    supabase.table("audit_logs") \
+    _safe_supabase(
+        supabase.table("audit_logs")
         .insert({
             "raffle_id": raffle_id,
             "participant_id": result["winner_participant_id"],
             "action": "claim_expired",
             "detail": "El candidato ganador no confirmó dentro del tiempo establecido. El sorteo vuelve a estar activo."
-        }) \
-        .execute()
+        })
+    )
 
     return {
         "message": "Confirmación expirada. El sorteo vuelve a estar activo.",

@@ -23,12 +23,18 @@ router = APIRouter(prefix="/overlay", tags=["Overlay"])
 
 @router.get("/me", response_model=OverlayMeResponse)
 def get_my_overlay(user=Depends(get_current_user)):
-    return get_or_create_user_overlay(user_id=user["id"], frontend_base_url=settings.frontend_base_url or "http://localhost:3000")
+    try:
+        return get_or_create_user_overlay(user_id=user["id"], frontend_base_url=settings.frontend_base_url or "http://localhost:3000")
+    except OverlayStorageUnavailable as exc:
+        raise HTTPException(status_code=503, detail="No se pudo obtener temporalmente el estado del overlay. Inténtalo nuevamente.") from exc
 
 
 @router.post("/regenerate-token", response_model=OverlayRegenerateResponse)
 def regenerate_overlay_token(user=Depends(get_current_user)):
-    return regenerate_user_overlay(user_id=user["id"], frontend_base_url=settings.frontend_base_url or "http://localhost:3000")
+    try:
+        return regenerate_user_overlay(user_id=user["id"], frontend_base_url=settings.frontend_base_url or "http://localhost:3000")
+    except OverlayStorageUnavailable as exc:
+        raise HTTPException(status_code=503, detail="No se pudo obtener temporalmente el estado del overlay. Inténtalo nuevamente.") from exc
 
 
 @router.get("/state/{overlay_token}", response_model=OverlayStateResponse)
@@ -36,7 +42,7 @@ def get_state(overlay_token: str):
     try:
         return get_overlay_state(overlay_token)
     except OverlayStorageUnavailable as exc:
-        raise HTTPException(status_code=503, detail="No se pudo consultar temporalmente el estado del overlay.") from exc
+        raise HTTPException(status_code=503, detail="No se pudo obtener temporalmente el estado del overlay. Inténtalo nuevamente.") from exc
 
 
 @router.post("/state", response_model=OverlayStateResponse)
@@ -49,7 +55,7 @@ def update_state(data: OverlayStateUpdateRequest):
             payload=data.payload,
         )
     except OverlayStorageUnavailable as exc:
-        raise HTTPException(status_code=503, detail="No se pudo actualizar temporalmente el estado del overlay.") from exc
+        raise HTTPException(status_code=503, detail="No se pudo obtener temporalmente el estado del overlay. Inténtalo nuevamente.") from exc
 
 
 @router.post("/hide", response_model=OverlayStateResponse)
@@ -58,4 +64,4 @@ def hide(data: OverlayHideRequest):
     try:
         return hide_overlay(data.overlay_token)
     except OverlayStorageUnavailable as exc:
-        raise HTTPException(status_code=503, detail="No se pudo actualizar temporalmente el estado del overlay.") from exc
+        raise HTTPException(status_code=503, detail="No se pudo obtener temporalmente el estado del overlay. Inténtalo nuevamente.") from exc
