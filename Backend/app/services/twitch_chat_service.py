@@ -27,6 +27,17 @@ def _is_duplicate_source_event_error(error: APIError) -> bool:
         or ("duplicate key" in message and "source_event_id" in message)
     )
 
+
+def _is_duplicate_raffle_participant_error(error: APIError) -> bool:
+    error_code = str(getattr(error, "code", ""))
+    message = str(error).lower()
+    return (
+        error_code == "23505"
+        or "raffle_participants_raffle_id_participant_id_key" in message
+        or ("duplicate key" in message and "raffle_participants" in message)
+    )
+
+
 def _safe_supabase(query):
     try:
         return execute_with_retry(query)
@@ -161,20 +172,32 @@ def process_chat_message(*, streamer_user_id: str, message_id: str, twitch_user_
         )
 
         if not existing_link.data:
-            _safe_supabase(
-                supabase.table("raffle_participants")
-                .insert(
-                    {
-                        "raffle_id": raffle["id"],
-                        "participant_id": participant["id"],
-                        "entry_source": "chat_command",
-                        "status": "registered",
-                        "is_eligible": False,
-                        "final_score": 0,
-                    }
+            try:
+                _safe_supabase(
+                    supabase.table("raffle_participants")
+                    .insert(
+                        {
+                            "raffle_id": raffle["id"],
+                            "participant_id": participant["id"],
+                            "entry_source": "chat_command",
+                            "status": "registered",
+                            "is_eligible": False,
+                            "final_score": 0,
+                        }
+                    )
                 )
-            )
-            participant_registered = True
+                participant_registered = True
+            except APIError as error:
+                if not _is_duplicate_raffle_participant_error(error):
+                    raise
+                existing_link = _safe_supabase(
+                    supabase.table("raffle_participants")
+                    .select("id")
+                    .eq("raffle_id", raffle["id"])
+                    .eq("participant_id", participant["id"])
+                    .limit(1)
+                )
+                participant_registered = False
 
         existing_entry = _safe_supabase(
             supabase.table("participation_entries")
