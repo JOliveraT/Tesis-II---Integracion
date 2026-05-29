@@ -265,6 +265,7 @@ import { participantService } from '@/services/participantService';
 import { useTwitchStore } from '@/stores/twitchStore';
 import { useAuthStore } from '@/stores/authStore';
 import { overlayService } from '@/services/overlayService';
+import { dedupeParticipantsForDraw, getParticipantKey, normalizeUsername, prepareNewRaffleState } from '@/utils/raffleParticipants';
 
   export default {
     components: {
@@ -401,25 +402,13 @@ import { overlayService } from '@/services/overlayService';
       },
 
       normalizeUsername(value) {
-        return (value || '')
-          .toLowerCase()
-          .trim()
-          .replace(/^@+/, '')
-          .replace(/\s+/g, '_')
-          .replace(/_+/g, '_');
+        return normalizeUsername(value);
       },
       getParticipantKey(participant) {
-        const username = this.normalizeUsername(participant?.username || participant?.name || participant?.display_name || participant);
-        return username ? `username:${username}` : '';
+        return getParticipantKey(participant);
       },
       dedupeParticipantsForDraw(list = []) {
-        const deduped = new Map();
-        list.forEach((participant) => {
-          const key = this.getParticipantKey(participant);
-          if (!key) return;
-          deduped.set(key, participant);
-        });
-        return Array.from(deduped.values());
+        return dedupeParticipantsForDraw(list);
       },
       mergeParticipants() {
         const mergedMap = new Map();
@@ -486,29 +475,11 @@ import { overlayService } from '@/services/overlayService';
         }
       },
       resetRaffleState() {
-        this.raffleFinished = false;
-        this.hasWinnerSelected = false;
-        this.isRaffleRunning = false;
-        this.isSyncingParticipants = false;
-        this.winner = "";
-        this.backendParticipants = [];
-        this.manualParticipants = [];
-        this.participants = [];
-        this.manualParticipantsSynced = false;
-        this.mostrarAnimacion = false;
-        this.isClaimStarted = false;
-        this.claimExpiresAt = null;
-        this.hoverIndex = -1;
+        Object.assign(this, prepareNewRaffleState());
       },
       prepareNewRaffle() {
         if (!this.guardDrawActions()) return;
         this.stopParticipantsPolling();
-        this.raffleId = null;
-        this.confirmationMode = null;
-        this.drawError = "";
-        this.drawSuccess = "";
-        this.manualInput = "";
-        this.isStopped = false;
         this.resetRaffleState();
         this.$nextTick(() => {
           this.updateParticipantsHeight();
