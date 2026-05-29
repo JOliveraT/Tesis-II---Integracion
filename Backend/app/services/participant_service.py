@@ -34,6 +34,16 @@ def _is_duplicate_source_event_error(error: APIError) -> bool:
     )
 
 
+def _is_duplicate_raffle_participant_error(error: APIError) -> bool:
+    error_code = str(getattr(error, "code", ""))
+    message = str(error).lower()
+    return (
+        error_code == "23505"
+        or "raffle_participants_raffle_id_participant_id_key" in message
+        or ("duplicate key" in message and "raffle_participants" in message)
+    )
+
+
 def _validate_active_raffle(raffle_id: str) -> dict:
     raffle_response = _safe_supabase(
         supabase.table("raffles").select("*").eq("id", raffle_id).single(),
@@ -101,17 +111,29 @@ def upsert_participant(
         retry_detail,
     )
     if not existing_link.data:
-        _safe_supabase(
-            supabase.table("raffle_participants").insert(
-                {
-                    "raffle_id": raffle_id,
-                    "participant_id": participant["id"],
-                    "entry_source": _entry_source_value(entry_source),
-                    "status": "registered",
-                }
-            ),
-            retry_detail,
-        )
+        try:
+            _safe_supabase(
+                supabase.table("raffle_participants").insert(
+                    {
+                        "raffle_id": raffle_id,
+                        "participant_id": participant["id"],
+                        "entry_source": _entry_source_value(entry_source),
+                        "status": "registered",
+                    }
+                ),
+                retry_detail,
+            )
+        except APIError as error:
+            if not _is_duplicate_raffle_participant_error(error):
+                raise
+            existing_link = _safe_supabase(
+                supabase.table("raffle_participants")
+                .select("*")
+                .eq("raffle_id", raffle_id)
+                .eq("participant_id", participant["id"])
+                .limit(1),
+                retry_detail,
+            )
 
     if not entry_content:
         if entry_source == EntrySource.chat_command or entry_source == EntrySource.chat_command.value:
