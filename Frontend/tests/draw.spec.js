@@ -50,12 +50,13 @@ function mountDraw() {
 }
 
 describe('draw.vue raffle lifecycle', () => {
-  it('prepareNewRaffle clears the raffle lifecycle state', () => {
-    const context = {
-      guardDrawActions: () => true,
-      stopParticipantsPolling: vi.fn(),
-      $nextTick: (callback) => callback(),
-      updateParticipantsHeight: vi.fn(),
+  it('prepareNewRaffle clears the raffle lifecycle state', async () => {
+    const wrapper = mountDraw();
+    await nextTick();
+
+    const stopParticipantsPollingSpy = vi.spyOn(wrapper.vm, 'stopParticipantsPolling');
+
+    await wrapper.setData({
       raffleId: 'raffle-1',
       winner: 'winner',
       participants: [{ username: 'one' }],
@@ -63,17 +64,20 @@ describe('draw.vue raffle lifecycle', () => {
       backendParticipants: [{ username: 'three' }],
       raffleFinished: true,
       hasWinnerSelected: true,
-    };
+      twitchStore: { connected: true },
+    });
 
-    Draw.methods.prepareNewRaffle.call(context);
+    wrapper.vm.prepareNewRaffle();
+    await nextTick();
 
-    expect(context.raffleId).toBeNull();
-    expect(context.winner).toBe('');
-    expect(context.participants).toEqual([]);
-    expect(context.manualParticipants).toEqual([]);
-    expect(context.backendParticipants).toEqual([]);
-    expect(context.raffleFinished).toBe(false);
-    expect(context.hasWinnerSelected).toBe(false);
+    expect(stopParticipantsPollingSpy).toHaveBeenCalled();
+    expect(wrapper.vm.raffleId).toBeNull();
+    expect(wrapper.vm.winner).toBe('');
+    expect(wrapper.vm.participants).toEqual([]);
+    expect(wrapper.vm.manualParticipants).toEqual([]);
+    expect(wrapper.vm.backendParticipants).toEqual([]);
+    expect(wrapper.vm.raffleFinished).toBe(false);
+    expect(wrapper.vm.hasWinnerSelected).toBe(false);
   });
 
   it('disables the draw button and shows finalization text when the raffle is finished', async () => {
