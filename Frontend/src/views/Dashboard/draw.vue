@@ -177,6 +177,13 @@
             <!-- Botón de Sorteo -->
             <div class="text-center mt-3">
               <button class="btn btn-primary" @click="startSort"  :disabled="isSortButtonDisabled">{{ sortButtonText }}</button>
+              <button
+                v-if="shouldShowNewRaffleButton"
+                class="btn btn-outline-primary ms-2 mt-2 mt-sm-0"
+                @click="prepareNewRaffle"
+              >
+                Crear nuevo sorteo
+              </button>
             </div>
           </div>
         </div>
@@ -312,8 +319,16 @@ import { overlayService } from '@/services/overlayService';
       shouldShowRaffleTypeSelector() {
         return !this.isDrawLocked && !this.hasActiveRaffle;
       },
+      shouldShowNewRaffleButton() {
+        return !this.isDrawLocked && (this.raffleFinished || this.hasWinnerSelected);
+      },
       isRaffleNotReady() {
-        return this.isDrawLocked || !this.hasActiveRaffle || this.isCreatingRaffle || this.isRaffleRunning;
+        return this.isDrawLocked
+          || !this.hasActiveRaffle
+          || this.isCreatingRaffle
+          || this.isRaffleRunning
+          || this.raffleFinished
+          || this.hasWinnerSelected;
       },
       isSortButtonDisabled() {
         return this.isStopped || this.isRaffleNotReady || this.isRaffleRunning || this.isSyncingParticipants || this.raffleFinished || this.hasWinnerSelected;
@@ -474,10 +489,30 @@ import { overlayService } from '@/services/overlayService';
         this.raffleFinished = false;
         this.hasWinnerSelected = false;
         this.isRaffleRunning = false;
+        this.isSyncingParticipants = false;
         this.winner = "";
         this.backendParticipants = [];
         this.manualParticipants = [];
         this.participants = [];
+        this.manualParticipantsSynced = false;
+        this.mostrarAnimacion = false;
+        this.isClaimStarted = false;
+        this.claimExpiresAt = null;
+        this.hoverIndex = -1;
+      },
+      prepareNewRaffle() {
+        if (!this.guardDrawActions()) return;
+        this.stopParticipantsPolling();
+        this.raffleId = null;
+        this.confirmationMode = null;
+        this.drawError = "";
+        this.drawSuccess = "";
+        this.manualInput = "";
+        this.isStopped = false;
+        this.resetRaffleState();
+        this.$nextTick(() => {
+          this.updateParticipantsHeight();
+        });
       },
       extractWinnerName(response) {
         const winnerName = response?.winner?.username
