@@ -1,19 +1,44 @@
 from datetime import datetime, timezone
 
+import httpx
 from fastapi import HTTPException
+from postgrest.exceptions import APIError
 
 from app.database import supabase
 from app.schemas.enums import EntrySource
-from app.services.supabase_retry import execute_with_retry
-import httpx
+from app.services.supabase_retry import RETRYABLE_SUPABASE_ERRORS, execute_with_retry
 
 
 def normalize_username(username: str) -> str:
     return username.strip().lower().replace(" ", "_")
 
 
+def _safe_supabase(query, detail: str = "No se pudo completar la operación temporalmente. Inténtalo nuevamente."):
+    try:
+        return execute_with_retry(query)
+    except RETRYABLE_SUPABASE_ERRORS as error:
+        raise HTTPException(status_code=503, detail=detail) from error
+
+
+def _entry_source_value(entry_source: EntrySource | str) -> str:
+    return entry_source.value if isinstance(entry_source, EntrySource) else str(entry_source)
+
+
+def _is_duplicate_source_event_error(error: APIError) -> bool:
+    error_code = str(getattr(error, "code", ""))
+    message = str(error).lower()
+    return (
+        error_code == "23505"
+        or "uq_participation_entries_source_event_id" in message
+        or ("duplicate key" in message and "source_event_id" in message)
+    )
+
+
 def _validate_active_raffle(raffle_id: str) -> dict:
-    raffle_response = supabase.table("raffles").select("*").eq("id", raffle_id).single().execute()
+    raffle_response = _safe_supabase(
+        supabase.table("raffles").select("*").eq("id", raffle_id).single(),
+        "No se pudo validar temporalmente el sorteo. Inténtalo nuevamente.",
+    )
     raffle = raffle_response.data
 
     if not raffle:
@@ -28,20 +53,20 @@ def upsert_participant(
     username: str,
     display_name: str | None = None,
     twitch_user_id: str | None = None,
-    entry_source: EntrySource = EntrySource.chat_command,
+    entry_source: EntrySource | str = EntrySource.chat_command,
     entry_content: str | None = None,
     source_event_id: str | None = None,
 ):
+    retry_detail = "No se pudo registrar temporalmente el participante. Inténtalo nuevamente."
     raffle = _validate_active_raffle(raffle_id)
 
     if source_event_id:
-        existing_entry = (
+        existing_entry = _safe_supabase(
             supabase.table("participation_entries")
             .select("*")
-            .eq("raffle_id", raffle_id)
             .eq("source_event_id", source_event_id)
-            .limit(1)
-            .execute()
+            .limit(1),
+            retry_detail,
         )
         if existing_entry.data:
             return {
@@ -53,45 +78,75 @@ def upsert_participant(
 
     username = normalize_username(username)
     display_name = display_name or username
-    existing = supabase.table("participants").select("*").eq("username", username).limit(1).execute()
-    participant = existing.data[0] if existing.data else supabase.table("participants").insert(
-        {"twitch_user_id": twitch_user_id, "username": username, "display_name": display_name}
-    ).execute().data[0]
+    existing = _safe_supabase(
+        supabase.table("participants").select("*").eq("username", username).limit(1),
+        retry_detail,
+    )
+    if existing.data:
+        participant = existing.data[0]
+    else:
+        created_participant = _safe_supabase(
+            supabase.table("participants").insert(
+                {"twitch_user_id": twitch_user_id, "username": username, "display_name": display_name}
+            ),
+            retry_detail,
+        )
+        participant = created_participant.data[0]
 
-    existing_link = (
-        supabase.table("raffle_participants").select("*").eq("raffle_id", raffle_id).eq("participant_id", participant["id"]).execute()
+    existing_link = _safe_supabase(
+        supabase.table("raffle_participants")
+        .select("*")
+        .eq("raffle_id", raffle_id)
+        .eq("participant_id", participant["id"]),
+        retry_detail,
     )
     if not existing_link.data:
-        supabase.table("raffle_participants").insert(
-            {
-                "raffle_id": raffle_id,
-                "participant_id": participant["id"],
-                "entry_source": entry_source.value,
-                "status": "registered",
-            }
-        ).execute()
+        _safe_supabase(
+            supabase.table("raffle_participants").insert(
+                {
+                    "raffle_id": raffle_id,
+                    "participant_id": participant["id"],
+                    "entry_source": _entry_source_value(entry_source),
+                    "status": "registered",
+                }
+            ),
+            retry_detail,
+        )
 
     if not entry_content:
-        if entry_source == EntrySource.chat_command:
+        if entry_source == EntrySource.chat_command or entry_source == EntrySource.chat_command.value:
             entry_content = raffle.get("command", "!sorteo")
-        elif entry_source == EntrySource.manual:
+        elif entry_source == EntrySource.manual or entry_source == EntrySource.manual.value:
             entry_content = "Participante agregado manualmente por el streamer."
-        elif entry_source == EntrySource.channel_points_reward:
+        elif entry_source == EntrySource.channel_points_reward or entry_source == EntrySource.channel_points_reward.value:
             entry_content = "Participante ingresó mediante canje de recompensa."
         else:
             entry_content = "Participante ingresó al sorteo."
 
-    entry_response = supabase.table("participation_entries").insert(
-        {
-            "raffle_id": raffle_id,
-            "participant_id": participant["id"],
-            "entry_type": entry_source.value,
-            "source_event_id": source_event_id,
-            "content": entry_content,
-        }
-    ).execute()
+    try:
+        entry_response = _safe_supabase(
+            supabase.table("participation_entries").insert(
+                {
+                    "raffle_id": raffle_id,
+                    "participant_id": participant["id"],
+                    "entry_type": _entry_source_value(entry_source),
+                    "source_event_id": source_event_id,
+                    "content": entry_content,
+                }
+            ),
+            retry_detail,
+        )
+    except APIError as error:
+        if source_event_id and _is_duplicate_source_event_error(error):
+            return {"raffle": raffle, "participant": participant, "entry": None, "duplicate": True}
+        raise
 
-    return {"raffle": raffle, "participant": participant, "entry": entry_response.data[0] if entry_response.data else None, "duplicate": False}
+    return {
+        "raffle": raffle,
+        "participant": participant,
+        "entry": entry_response.data[0] if entry_response.data else None,
+        "duplicate": False,
+    }
 
 
 def bulk_register_participants(raffle_id: str, participants: list[dict]):
@@ -140,21 +195,17 @@ def bulk_register_participants(raffle_id: str, participants: list[dict]):
     }
 
 
-
 def list_raffle_participants(raffle_id: str):
-    try:
-        execute_with_retry(lambda: _validate_active_raffle(raffle_id))
+    _validate_active_raffle(raffle_id)
 
-        response = execute_with_retry(lambda: (
+    response = _safe_supabase(
         supabase.table("raffle_participants")
         .select("participant_id, entry_source, status, is_eligible, final_score, joined_at, participants:participant_id(username, display_name, twitch_user_id)")
         .eq("raffle_id", raffle_id)
         .neq("status", "removed")
-        .order("joined_at", desc=False)
-        .execute()
-    ))
-    except (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException) as error:
-        raise HTTPException(status_code=503, detail="No se pudo obtener temporalmente la lista de participantes.") from error
+        .order("joined_at", desc=False),
+        "No se pudo obtener temporalmente la lista de participantes. Inténtalo nuevamente.",
+    )
 
     data = []
     for item in response.data or []:
@@ -176,16 +227,18 @@ def list_raffle_participants(raffle_id: str):
         "data": data,
     }
 
+
 def remove_participant_from_raffle(raffle_id: str, participant_id: str, reason: str | None = None):
+    retry_detail = "No se pudo remover temporalmente el participante. Inténtalo nuevamente."
     _validate_active_raffle(raffle_id)
 
-    relation_response = (
+    relation_response = _safe_supabase(
         supabase.table("raffle_participants")
         .select("*")
         .eq("raffle_id", raffle_id)
         .eq("participant_id", participant_id)
-        .limit(1)
-        .execute()
+        .limit(1),
+        retry_detail,
     )
 
     if not relation_response.data:
@@ -201,19 +254,20 @@ def remove_participant_from_raffle(raffle_id: str, participant_id: str, reason: 
         "removal_reason": reason,
     }
 
-    updated = (
-        supabase.table("raffle_participants")
-        .update(payload)
-        .eq("id", relation["id"])
-        .execute()
+    updated = _safe_supabase(
+        supabase.table("raffle_participants").update(payload).eq("id", relation["id"]),
+        retry_detail,
     )
 
-    supabase.table("audit_logs").insert({
-        "raffle_id": raffle_id,
-        "participant_id": participant_id,
-        "action": "participant_removed",
-        "detail": reason or "Participante removido manualmente del sorteo.",
-    }).execute()
+    _safe_supabase(
+        supabase.table("audit_logs").insert({
+            "raffle_id": raffle_id,
+            "participant_id": participant_id,
+            "action": "participant_removed",
+            "detail": reason or "Participante removido manualmente del sorteo.",
+        }),
+        retry_detail,
+    )
 
     return {"message": "Participante removido correctamente.", "raffle_participant": updated.data[0] if updated.data else payload}
 

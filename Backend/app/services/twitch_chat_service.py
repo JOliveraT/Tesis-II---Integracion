@@ -7,15 +7,25 @@ from postgrest.exceptions import APIError
 from app.database import supabase
 from app.services.audit_service import create_audit_log
 from app.services.participant_service import normalize_username
-from app.services.supabase_retry import execute_with_retry
+from app.services.supabase_retry import RETRYABLE_SUPABASE_ERRORS, execute_with_retry
 
 PROCESSABLE_RAFFLE_STATUSES = ["draft", "active", "pending_claim"]
-RETRYABLE_ERRORS = (httpx.RemoteProtocolError, httpx.ConnectError, httpx.ReadTimeout, httpx.TimeoutException)
+RETRYABLE_ERRORS = RETRYABLE_SUPABASE_ERRORS
 
 
 def _normalized_text(value: str | None) -> str:
     return (value or "").strip().lower()
 
+
+
+def _is_duplicate_source_event_error(error: APIError) -> bool:
+    error_code = str(getattr(error, "code", ""))
+    message = str(error).lower()
+    return (
+        error_code == "23505"
+        or "uq_participation_entries_source_event_id" in message
+        or ("duplicate key" in message and "source_event_id" in message)
+    )
 
 def _safe_supabase(query):
     try:
@@ -29,12 +39,11 @@ def _safe_supabase(query):
 
 def _resolve_user_channel(user_id: str) -> dict:
     channel_response = _safe_supabase(
-        lambda: supabase.table("twitch_channels")
+        supabase.table("twitch_channels")
         .select("id,user_id,twitch_user_id")
         .eq("user_id", user_id)
         .order("updated_at", desc=True)
         .limit(1)
-        .execute()
     )
     channels = channel_response.data or []
     if not channels:
@@ -44,14 +53,13 @@ def _resolve_user_channel(user_id: str) -> dict:
 
 def _resolve_latest_processible_raffle(channel_id: str) -> dict:
     raffle_response = _safe_supabase(
-        lambda: supabase.table("raffles")
+        supabase.table("raffles")
         .select("id,command,status,channel_id,created_at,updated_at")
         .eq("channel_id", channel_id)
         .in_("status", PROCESSABLE_RAFFLE_STATUSES)
         .order("updated_at", desc=True)
         .order("created_at", desc=True)
         .limit(1)
-        .execute()
     )
     raffles = raffle_response.data or []
     if not raffles:
@@ -63,12 +71,12 @@ def _get_or_create_participant(twitch_user_id: str, username: str, display_name:
     normalized_username = normalize_username(username)
     participant = None
 
-    by_twitch = _safe_supabase(lambda: supabase.table("participants").select("*").eq("twitch_user_id", twitch_user_id).limit(1).execute())
+    by_twitch = _safe_supabase(supabase.table("participants").select("*").eq("twitch_user_id", twitch_user_id).limit(1))
     if by_twitch.data:
         participant = by_twitch.data[0]
 
     if not participant:
-        by_username = _safe_supabase(lambda: supabase.table("participants").select("*").eq("username", normalized_username).limit(1).execute())
+        by_username = _safe_supabase(supabase.table("participants").select("*").eq("username", normalized_username).limit(1))
         if by_username.data:
             participant = by_username.data[0]
 
@@ -81,13 +89,13 @@ def _get_or_create_participant(twitch_user_id: str, username: str, display_name:
         if twitch_user_id and participant.get("twitch_user_id") != twitch_user_id:
             updates["twitch_user_id"] = twitch_user_id
         if updates:
-            updated = _safe_supabase(lambda: supabase.table("participants").update(updates).eq("id", participant["id"]).execute())
+            updated = _safe_supabase(supabase.table("participants").update(updates).eq("id", participant["id"]))
             if updated.data:
                 participant = updated.data[0]
         return participant
 
     created = _safe_supabase(
-        lambda: supabase.table("participants")
+        supabase.table("participants")
         .insert(
             {
                 "twitch_user_id": twitch_user_id,
@@ -95,7 +103,6 @@ def _get_or_create_participant(twitch_user_id: str, username: str, display_name:
                 "display_name": display_name or normalized_username,
             }
         )
-        .execute()
     )
     return created.data[0]
 
@@ -110,12 +117,10 @@ def process_chat_message(*, streamer_user_id: str, message_id: str, twitch_user_
     raffle = _resolve_latest_processible_raffle(channel["id"])
 
     duplicate_entry = _safe_supabase(
-        lambda: supabase.table("participation_entries")
+        supabase.table("participation_entries")
         .select("id")
-        .eq("raffle_id", raffle["id"])
         .eq("source_event_id", message_id)
         .limit(1)
-        .execute()
     )
     if duplicate_entry.data:
         return {"message": "Mensaje ya procesado previamente", "data": {"duplicate_event": True}}
@@ -124,36 +129,40 @@ def process_chat_message(*, streamer_user_id: str, message_id: str, twitch_user_
 
     is_command = _normalized_text(message_text) == _normalized_text(raffle.get("command"))
 
-    _safe_supabase(
-        lambda: supabase.table("chat_messages")
-        .insert(
-            {
-                "raffle_id": raffle["id"],
-                "participant_id": participant["id"],
-                "message_text": message_text,
-                "is_command": is_command,
-                "sent_at": datetime.now(timezone.utc).isoformat(),
-            }
+    try:
+        _safe_supabase(
+            supabase.table("chat_messages")
+            .insert(
+                {
+                    "raffle_id": raffle["id"],
+                    "participant_id": participant["id"],
+                    "message_text": message_text,
+                    "is_command": is_command,
+                    "sent_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
         )
-        .execute()
-    )
+    except APIError as error:
+        message = str(error).lower()
+        if str(getattr(error, "code", "")) == "23505" or ("duplicate key" in message and "chat_messages" in message):
+            return {"message": "Mensaje ya procesado previamente", "data": {"duplicate_event": True}}
+        raise
 
     participant_registered = False
     entry_created = False
 
     if is_command:
         existing_link = _safe_supabase(
-            lambda: supabase.table("raffle_participants")
+            supabase.table("raffle_participants")
             .select("id")
             .eq("raffle_id", raffle["id"])
             .eq("participant_id", participant["id"])
             .limit(1)
-            .execute()
         )
 
         if not existing_link.data:
             _safe_supabase(
-                lambda: supabase.table("raffle_participants")
+                supabase.table("raffle_participants")
                 .insert(
                     {
                         "raffle_id": raffle["id"],
@@ -164,22 +173,19 @@ def process_chat_message(*, streamer_user_id: str, message_id: str, twitch_user_
                         "final_score": 0,
                     }
                 )
-                .execute()
             )
             participant_registered = True
 
         existing_entry = _safe_supabase(
-            lambda: supabase.table("participation_entries")
+            supabase.table("participation_entries")
             .select("id")
-            .eq("raffle_id", raffle["id"])
             .eq("source_event_id", message_id)
             .limit(1)
-            .execute()
         )
         if not existing_entry.data:
             try:
                 _safe_supabase(
-                    lambda: supabase.table("participation_entries")
+                    supabase.table("participation_entries")
                     .insert(
                         {
                             "raffle_id": raffle["id"],
@@ -189,21 +195,26 @@ def process_chat_message(*, streamer_user_id: str, message_id: str, twitch_user_
                             "content": message_text,
                         }
                     )
-                    .execute()
                 )
                 entry_created = True
             except APIError as error:
-                if str(getattr(error, "code", "")) == "23505":
+                if _is_duplicate_source_event_error(error):
                     return {"message": "Mensaje ya procesado previamente", "data": {"duplicate_event": True}}
                 raise
 
         if participant_registered:
-            create_audit_log(
-                raffle_id=raffle["id"],
-                participant_id=participant["id"],
-                action="chat_command_entry",
-                detail="Participante registrado por comando de chat",
-            )
+            try:
+                create_audit_log(
+                    raffle_id=raffle["id"],
+                    participant_id=participant["id"],
+                    action="chat_command_entry",
+                    detail="Participante registrado por comando de chat",
+                )
+            except RETRYABLE_ERRORS as error:
+                raise HTTPException(
+                    status_code=503,
+                    detail="No se pudo procesar temporalmente el mensaje de chat. Inténtalo nuevamente.",
+                ) from error
 
     return {
         "message": "Mensaje procesado correctamente",
